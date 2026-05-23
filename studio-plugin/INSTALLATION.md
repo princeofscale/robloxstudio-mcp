@@ -26,7 +26,7 @@ Complete your AI assistant integration with this easy-to-install Studio plugin. 
 
 ### Method 3: Save as Local Plugin
 1. **Copy the plugin code:**
-   - Open [studio-plugin/src/server/index.server.ts](https://github.com/chrrxs/robloxstudio-mcp/blob/main/studio-plugin/src/server/index.server.ts) on GitHub (or build locally — see project README)
+   - Open [studio-plugin/src/server/index.server.ts](https://github.com/chrrxs/robloxstudio-mcp/blob/main/studio-plugin/src/server/index.server.ts) on GitHub (or build locally - see project README)
    - Copy all the code (Ctrl+A, Ctrl+C)
 
 2. **Create in Studio:**

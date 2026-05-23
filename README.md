@@ -1,4 +1,4 @@
-# Roblox Studio MCP Server — Fork
+# Roblox Studio MCP Server
 
 **Connect AI assistants like Claude and Gemini to Roblox Studio. Per-peer `execute_luau` and `stop_playtest` actually work.**
 
@@ -11,9 +11,9 @@
 | # | Bug upstream | Fix in this fork |
 |---|---|---|
 | 1 | `detectRole` uses `IsRunMode()`, so every play-mode peer reports as `edit` | One-line swap to `IsRunning()` in `Communication.ts:21` |
-| 2 | Plugin only registers with MCP when user clicks Connect — invisible in play DMs | Auto-activate on load via `task.delay(2, ...)` orchestrator in `server/index.server.ts` |
-| 3 | `target=client-N` is structurally impossible — client peer can't `HttpService:RequestAsync` | Server-peer **broker pattern**: per-player proxies registered with role=`client`, dispatched via `ReplicatedStorage.__MCPClientBroker` `RemoteFunction:InvokeClient` ([ClientBroker.ts](studio-plugin/src/modules/ClientBroker.ts)) |
-| 4 | `stop_playtest` warns `__MCP_STOP__` hoping a `LogService.MessageOut` listener catches it — never works cross-DM | Server-peer **edit-proxy** races the real edit DM for `/api/stop-playtest` specifically, calls `StudioTestService:EndTest` from the play server DM where it's legal |
+| 2 | Plugin only registers with MCP when user clicks Connect - invisible in play DMs | Auto-activate on load via `task.delay(2, ...)` orchestrator in `server/index.server.ts` |
+| 3 | `target=client-N` is structurally impossible - client peer can't `HttpService:RequestAsync` | Server-peer **broker pattern**: per-player proxies registered with role=`client`, dispatched via `ReplicatedStorage.__MCPClientBroker` `RemoteFunction:InvokeClient` ([ClientBroker.ts](studio-plugin/src/modules/ClientBroker.ts)) |
+| 4 | `stop_playtest` warns `__MCP_STOP__` hoping a `LogService.MessageOut` listener catches it - never works cross-DM | Server-peer **edit-proxy** races the real edit DM for `/api/stop-playtest` specifically, calls `StudioTestService:EndTest` from the play server DM where it's legal |
 
 All four are implemented in TypeScript under [studio-plugin/src/](studio-plugin/src/). The compiled `MCPPlugin.rbxmx` is attached to GitHub releases.
 
@@ -158,7 +158,7 @@ After a code change, **fully close and reopen Roblox Studio** for the new plugin
 
 1. Bump `version` in the four `package.json` files (root + 3 workspaces) in lockstep.
 2. `cd studio-plugin && npm run build && cd .. && node scripts/build-plugin.mjs && node scripts/build-plugin.mjs --variant inspector` to produce both rbxmx files.
-3. `npm publish --access public -w packages/robloxstudio-mcp -w packages/robloxstudio-mcp-inspector` (core is `private: true`-style internal, but currently published as a regular dep — flip it to `private: true` in `packages/core/package.json` if you don't want it on npm).
+3. `npm publish --access public -w packages/robloxstudio-mcp -w packages/robloxstudio-mcp-inspector` (core is `private: true`-style internal, but currently published as a regular dep - flip it to `private: true` in `packages/core/package.json` if you don't want it on npm).
 4. Cut a GitHub release on `chrrxs/robloxstudio-mcp` tagged `v<version>` with `MCPPlugin.rbxmx` and `MCPInspectorPlugin.rbxmx` attached so `--install-plugin` finds them.
 
 ### Verification recipe (against a running Studio)

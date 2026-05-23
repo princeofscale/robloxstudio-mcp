@@ -961,11 +961,11 @@ export const TOOL_DEFINITIONS: ToolDefinition[] = [
   {
     name: 'generate_build',
     category: 'write',
-    description: `Procedurally generate a build via JS code. ALWAYS generate the entire scene in ONE call — never split into multiple small builds. PREFER high-level primitives over manual loops. No comments. No unnecessary variables. Maximize build detail per line.
+    description: `Procedurally generate a build via JS code. ALWAYS generate the entire scene in ONE call - never split into multiple small builds. PREFER high-level primitives over manual loops. No comments. No unnecessary variables. Maximize build detail per line.
 
-EDITING: When modifying an existing build, call get_build first to retrieve the original code. Then make ONLY the targeted changes the user requested — do not rewrite unchanged code. Pass the modified code to generate_build.
+EDITING: When modifying an existing build, call get_build first to retrieve the original code. Then make ONLY the targeted changes the user requested - do not rewrite unchanged code. Pass the modified code to generate_build.
 
-HIGH-LEVEL (use these first — each replaces 5-20 lines):
+HIGH-LEVEL (use these first - each replaces 5-20 lines):
   room(x,y,z, w,h,d, wallKey, floorKey?, ceilKey?, wallThickness?) - Complete enclosed room (floor+ceiling+4 walls)
   roof(x,y,z, w,d, style, key, overhang?) - style: "flat"|"gable"|"hip"
   stairs(x1,y1,z1, x2,y2,z2, width, key) - Auto-generates steps between two points
@@ -977,9 +977,9 @@ HIGH-LEVEL (use these first — each replaces 5-20 lines):
 BASIC:
   part(x,y,z, sx,sy,sz, key, shape?, transparency?)
   rpart(x,y,z, sx,sy,sz, rx,ry,rz, key, shape?, transparency?)
-  wall(x1,z1, x2,z2, height, thickness, key) — vertical plane from (x1,z1) to (x2,z2)
-  floor(x1,z1, x2,z2, y, thickness, key) — horizontal plane at height y, corners (x1,z1)-(x2,z2). NOT fill — only takes 2D corners+y, not 3D points
-  fill(x1,y1,z1, x2,y2,z2, key, [ux,uy,uz]?) — 3D volume between two 3D points
+  wall(x1,z1, x2,z2, height, thickness, key) - vertical plane from (x1,z1) to (x2,z2)
+  floor(x1,z1, x2,z2, y, thickness, key) - horizontal plane at height y, corners (x1,z1)-(x2,z2). NOT fill - only takes 2D corners+y, not 3D points
+  fill(x1,y1,z1, x2,y2,z2, key, [ux,uy,uz]?) - 3D volume between two 3D points
   beam(x1,y1,z1, x2,y2,z2, thickness, key)
 
 IMPORTANT: Palette keys must match exactly. Use only keys defined in your palette object, not color names.
@@ -992,7 +992,7 @@ REPETITION:
 Shapes: Block(default), Wedge, Cylinder, Ball, CornerWedge. Max 10000 parts. Math and rng() available.
 CYLINDER AXIS: Roblox cylinders extend along the X axis. For upright cylinders, use size (height, diameter, diameter) with rz=90. The column() primitive handles this automatically.
 
-EXAMPLE — compact cabin (17 lines):
+EXAMPLE - compact cabin (17 lines):
 room(0,0,0,8,4,6,"a","b","a")
 roof(0,4,0,8,6,"gable","c")
 wall(-4,0,-2,4,0,-2,4,1,"a")
@@ -1015,7 +1015,7 @@ part(0,2,0,2,1,1,"b")`,
         },
         palette: {
           type: 'object',
-          description: 'Map of short keys to [BrickColor, Material] or [BrickColor, Material, MaterialVariant] tuples. E.g. {"a": ["Dark stone grey", "Cobblestone"], "b": ["Brown", "WoodPlanks", "MyCustomWood"]}. MaterialVariant is optional — use it to reference custom materials from MaterialService.'
+          description: 'Map of short keys to [BrickColor, Material] or [BrickColor, Material, MaterialVariant] tuples. E.g. {"a": ["Dark stone grey", "Cobblestone"], "b": ["Brown", "WoodPlanks", "MyCustomWood"]}. MaterialVariant is optional - use it to reference custom materials from MaterialService.'
         },
         code: {
           type: 'string',
@@ -1088,7 +1088,7 @@ part(0,2,0,2,1,1,"b")`,
   {
     name: 'get_build',
     category: 'read',
-    description: 'Get a build from the library by ID. Returns metadata, palette, and generator code (if the build was created with generate_build). IMPORTANT: When the user asks to modify an existing build, ALWAYS call get_build first to retrieve the original code, then make targeted edits to only the relevant lines, and call generate_build with the modified code. Never rewrite the entire code from scratch — only change what the user asked to change.',
+    description: 'Get a build from the library by ID. Returns metadata, palette, and generator code (if the build was created with generate_build). IMPORTANT: When the user asks to modify an existing build, ALWAYS call get_build first to retrieve the original code, then make targeted edits to only the relevant lines, and call generate_build with the modified code. Never rewrite the entire code from scratch - only change what the user asked to change.',
     inputSchema: {
       type: 'object',
       properties: {
@@ -1409,7 +1409,7 @@ part(0,2,0,2,1,1,"b")`,
   {
     name: 'character_navigation',
     category: 'write',
-    description: 'Move the player character to a target position or instance during playtest. Uses PathfindingService for automatic navigation around obstacles, falling back to direct movement. Requires an active playtest in "play" mode. Does NOT simulate player input — moves the character directly.',
+    description: 'Move the player character to a target position or instance during playtest. Uses PathfindingService for automatic navigation around obstacles, falling back to direct movement. Requires an active playtest in "play" mode. Does NOT simulate player input - moves the character directly.',
     inputSchema: {
       type: 'object',
       properties: {

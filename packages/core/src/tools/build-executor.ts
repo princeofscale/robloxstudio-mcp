@@ -344,7 +344,7 @@ export function runBuildExecutor(
       // Right slope
       rpartFn(x + (w/4 + oh/2) * 0.5, y + peakH/2, z, slopeW, 0.5, d + oh * 2, angle, 0, 0, key);
     } else if (style === 'hip') {
-      // Simple hip roof approximation — flat top with 4 wedge sides
+      // Simple hip roof approximation - flat top with 4 wedge sides
       const peakH = w / 3;
       floorFn(x - w/4, z - d/4, x + w/4, z + d/4, y + peakH, 0.5, key);
       const slopeW = Math.sqrt((w/2 + oh) * (w/2 + oh) + peakH * peakH);
@@ -430,7 +430,7 @@ export function runBuildExecutor(
     capKey?: string
   ) {
     validateKey(key, 'column');
-    // Shaft — Roblox cylinders axis is X, so rotate 90 on Z to stand upright
+    // Shaft - Roblox cylinders axis is X, so rotate 90 on Z to stand upright
     // Size: X=height (axis length), Y=diameter, Z=diameter
     rpartFn(x, y + height/2, z, height, radius * 2, radius * 2, 0, 0, 90, key, 'Cylinder');
     // Base

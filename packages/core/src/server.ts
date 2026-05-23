@@ -100,13 +100,13 @@ export class RobloxStudioMCPServer {
       console.error(`HTTP server listening on ${host}:${boundPort} for Studio plugin (primary mode)`);
       console.error(`Streamable HTTP MCP endpoint: http://localhost:${boundPort}/mcp`);
     } catch {
-      // All ports in use — fall back to proxy mode
+      // All ports in use - fall back to proxy mode
       bridgeMode = 'proxy';
       primaryApp = undefined;
       const proxyBridge = new ProxyBridgeService(`http://localhost:${basePort}`);
       this.bridge = proxyBridge;
       this.tools = new RobloxStudioTools(this.bridge);
-      console.error(`All ports ${basePort}-${basePort + 4} in use — entering proxy mode (forwarding to localhost:${basePort})`);
+      console.error(`All ports ${basePort}-${basePort + 4} in use - entering proxy mode (forwarding to localhost:${basePort})`);
 
       // Periodically try to promote to primary if the port frees up
       const promotionIntervalMs = parseInt(process.env.ROBLOX_STUDIO_PROXY_PROMOTION_INTERVAL_MS || '5000');
@@ -123,7 +123,7 @@ export class RobloxStudioMCPServer {
           console.error(`Promoted from proxy to primary on port ${boundPort}`);
           if (promotionInterval) clearInterval(promotionInterval);
         } catch {
-          // Still can't bind — stay in proxy mode, restore proxy bridge
+          // Still can't bind - stay in proxy mode, restore proxy bridge
           this.bridge = new ProxyBridgeService(`http://localhost:${basePort}`);
           this.tools = new RobloxStudioTools(this.bridge);
           primaryApp = undefined;
@@ -158,7 +158,7 @@ export class RobloxStudioMCPServer {
 
     console.error(bridgeMode === 'primary'
       ? 'MCP server marked as active (primary mode)'
-      : 'MCP server active in proxy mode — forwarding requests to primary');
+      : 'MCP server active in proxy mode - forwarding requests to primary');
 
     console.error('Waiting for Studio plugin to connect...');
 

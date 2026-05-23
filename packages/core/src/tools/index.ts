@@ -1061,7 +1061,7 @@ export class RobloxStudioTools {
       }
       resolved = JSON.parse(fs.readFileSync(filePath, 'utf-8'));
     } else if (buildData.id && !buildData.parts) {
-      // Object with just an id — try loading from library
+      // Object with just an id - try loading from library
       const filePath = path.join(RobloxStudioTools.findLibraryPath(), `${buildData.id}.json`);
       if (!fs.existsSync(filePath)) {
         throw new Error(`Build not found in library: ${buildData.id}`);
@@ -1298,7 +1298,7 @@ export class RobloxStudioTools {
     }
 
     if (expandedBuilds.length === 0) {
-      throw new Error('No builds to import — check model references and library');
+      throw new Error('No builds to import - check model references and library');
     }
 
     // Send expanded builds to plugin
@@ -1451,7 +1451,7 @@ export class RobloxStudioTools {
 
   // Decal asset IDs are the wrapper asset; ImageLabel.Image needs the underlying image
   // content ID. The only reliable cross-auth way to resolve this is InsertService:LoadAsset
-  // via the connected Studio plugin — the unauthenticated economy endpoint returns 401.
+  // via the connected Studio plugin - the unauthenticated economy endpoint returns 401.
   private async resolveImageId(decalAssetId: string): Promise<string | null> {
     const code = `
       local InsertService = game:GetService("InsertService")

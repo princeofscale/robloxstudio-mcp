@@ -36,7 +36,7 @@ UI.updateUIState();
 Communication.checkForUpdates();
 
 // Auto-activate per peer. The boshyxd plugin only registers with MCP when the
-// user clicks Connect in its UI, but that UI is invisible in play DMs — so
+// user clicks Connect in its UI, but that UI is invisible in play DMs - so
 // play peers' plugin instances load without ever registering. Run after a
 // short delay so the UI/State have a chance to initialize first.
 task.delay(2, () => {

@@ -1,6 +1,6 @@
 import { HttpService, Players, ReplicatedStorage, RunService } from "@rbxts/services";
 
-// The client peer cannot reach the MCP HTTP server — Roblox forbids
+// The client peer cannot reach the MCP HTTP server - Roblox forbids
 // HttpService:RequestAsync from the client DM even under PluginSecurity, and
 // HttpEnabled reads as false there regardless of identity. So the server peer
 // brokers execute_luau requests to the client via a RemoteFunction it places
@@ -8,7 +8,7 @@ import { HttpService, Players, ReplicatedStorage, RunService } from "@rbxts/serv
 // MCP side, polled and dispatched by the server peer.
 //
 // The same server peer also registers an "edit" proxy that intercepts
-// /api/stop-playtest specifically — StudioTestService:EndTest only works from
+// /api/stop-playtest specifically - StudioTestService:EndTest only works from
 // the play server DM, so the real edit DM cannot satisfy stop requests on its
 // own. MCP returns the same pending request to multiple pollers until someone
 // /responds, so non-stop edit-targeted requests fall through to the actual
