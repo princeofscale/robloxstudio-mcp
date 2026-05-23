@@ -1,0 +1,20 @@
+{
+  "compilerOptions": {
+    "allowSyntheticDefaultImports": true,
+    "downlevelIteration": true,
+    "jsx": "react",
+    "jsxFactory": "React.createElement",
+    "jsxFragmentFactory": "React.Fragment",
+    "module": "commonjs",
+    "moduleDetection": "force",
+    "moduleResolution": "node",
+    "noLib": true,
+    "resolveJsonModule": true,
+    "strict": true,
+    "target": "ESNext",
+    "typeRoots": ["node_modules/@rbxts"],
+    "rootDir": "src",
+    "outDir": "out",
+    "declaration": false
+  }
+}

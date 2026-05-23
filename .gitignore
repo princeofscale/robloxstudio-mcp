@@ -1,0 +1,88 @@
+# Dependencies
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Build outputs
+dist/
+*.tsbuildinfo
+
+# Environment files
+.env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+
+# IDE files
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Claude Code config (may contain credentials)
+.claude.json
+.claude/
+
+# Development files (keep local only)
+CLAUDE.md
+MCP_Server_Plan.md
+test-*.js
+example-*.json
+mcp.json
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Logs
+logs/
+*.log
+
+.WARP.md
+
+# Runtime data
+pids/
+*.pid
+*.seed
+*.pid.lock
+
+# Coverage directory used by tools like istanbul
+coverage/
+*.lcov
+
+# Temporary folders
+tmp/
+temp/
+
+# AI-generated content
+banner-prompt.txt
+forum-title.txt
+
+# Binaries
+lune.exe
+lune.zip
+
+# Build library (local user data)
+build-library/
+
+# Local notes
+notes/
+
+# Shell/OS junk
+bash.exe.stackdump
+*.FullName
+
+# Fork-specific
+# SPEC.md is the internal engineering brief — not for the public repo.
+SPEC.md
+# patches/ holds the historical Python hot-patch — superseded by the TS fork.
+patches/
+# references/ holds frozen upstream snapshots for diffing — not part of fork source.
+references/
+# studio-plugin/out is the compiled Luau output (rbxtsc); rebuilt by `npm run build`.
+studio-plugin/out/
+# Compiled rbxmx artifacts — produced by `npm run build:plugin`, attached to GitHub releases.
+studio-plugin/MCPPlugin.rbxmx
+studio-plugin/MCPInspectorPlugin.rbxmx

@@ -1,0 +1,19 @@
+{
+  "name": "MCPPlugin",
+  "tree": {
+    "$className": "Script",
+    "$path": "out/server",
+    "modules": {
+      "$path": "out/modules"
+    },
+    "include": {
+      "$path": "include"
+    },
+    "node_modules": {
+      "$className": "Folder",
+      "@rbxts": {
+        "$path": "node_modules/@rbxts"
+      }
+    }
+  }
+}

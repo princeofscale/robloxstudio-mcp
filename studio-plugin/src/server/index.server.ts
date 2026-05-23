@@ -1,0 +1,63 @@
+import State from "../modules/State";
+import UI from "../modules/UI";
+import Communication from "../modules/Communication";
+import ClientBroker from "../modules/ClientBroker";
+
+
+UI.init(plugin);
+const elements = UI.getElements();
+
+
+const toolbar = plugin.CreateToolbar("__TOOLBAR_NAME__");
+const button = toolbar.CreateButton("__BUTTON_TITLE__", "__BUTTON_TOOLTIP__", "rbxassetid://__BUTTON_ICON_ID__");
+
+
+elements.connectButton.Activated.Connect(() => {
+	const conn = State.getActiveConnection();
+	if (conn && conn.isActive) {
+		Communication.deactivatePlugin(State.getActiveTabIndex());
+	} else {
+		Communication.activatePlugin(State.getActiveTabIndex());
+	}
+});
+
+
+button.Click.Connect(() => {
+	elements.screenGui.Enabled = !elements.screenGui.Enabled;
+});
+
+
+plugin.Unloading.Connect(() => {
+	Communication.deactivateAll();
+});
+
+
+UI.updateUIState();
+Communication.checkForUpdates();
+
+// Auto-activate per peer. The boshyxd plugin only registers with MCP when the
+// user clicks Connect in its UI, but that UI is invisible in play DMs — so
+// play peers' plugin instances load without ever registering. Run after a
+// short delay so the UI/State have a chance to initialize first.
+task.delay(2, () => {
+	const role = ClientBroker.forkRole();
+	if (role === "edit" || role === "server") {
+		pcall(() => {
+			const idx = State.getActiveTabIndex();
+			const conn = State.getConnection(idx);
+			if (conn && !conn.isActive) {
+				// Defensive default: in invisible play-DM UIs, the input field
+				// may not be populated by the time we activate.
+				if (conn.serverUrl === undefined || conn.serverUrl === "") {
+					conn.serverUrl = ClientBroker.MCP_URL;
+				}
+				Communication.activatePlugin(idx);
+			}
+		});
+	}
+	if (role === "server") {
+		ClientBroker.setupServerBroker();
+	} else if (role === "client") {
+		ClientBroker.setupClientBroker();
+	}
+});
