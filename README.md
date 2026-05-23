@@ -37,7 +37,7 @@ codex mcp add robloxstudio -- npx -y @chrrxs/robloxstudio-mcp@latest
 
 **Gemini CLI:**
 ```bash
-gemini mcp add robloxstudio npx --trust -- -y robloxstudio-mcp@latest
+gemini mcp add robloxstudio npx --trust -- -y @chrrxs/robloxstudio-mcp@latest
 ```
 
 Plugin shows "Connected" when ready.
@@ -98,7 +98,7 @@ codex mcp add robloxstudio-inspector -- npx -y @chrrxs/robloxstudio-mcp-inspecto
 
 **Gemini:**
 ```bash
-gemini mcp add robloxstudio-inspector npx --trust -- -y robloxstudio-mcp-inspector@latest
+gemini mcp add robloxstudio-inspector npx --trust -- -y @chrrxs/robloxstudio-mcp-inspector@latest
 ```
 
 <details>
