@@ -294,8 +294,19 @@ function executeLuau(requestData: Record<string, unknown>) {
 	const runViaModuleScript = () => {
 		const m = new Instance("ModuleScript");
 		m.Name = "__MCPExecLuauPayload";
+		// Wrap user code in an IIFE so require() always gets exactly one
+		// return value. Without this, code like `print("x")` errors with
+		// "Module code did not return exactly one value" because top-level
+		// ModuleScripts must return exactly one value.
+		//
+		// The DOUBLE parens around the call are load-bearing: in Luau,
+		// `return f()` propagates whatever multi-value tuple f returns,
+		// including zero values. Outer parens adjust the call to exactly
+		// one value (the first, or nil). So `return ((f)())` always
+		// returns exactly one value, regardless of what f does.
+		const wrapped = `return ((function()\n${code}\nend)())`;
 		const [okSet, setErr] = pcall(() => {
-			(m as unknown as { Source: string }).Source = code;
+			(m as unknown as { Source: string }).Source = wrapped;
 		});
 		if (!okSet) {
 			m.Destroy();

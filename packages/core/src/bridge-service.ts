@@ -23,14 +23,26 @@ const STALE_INSTANCE_MS = 30000;
 export class BridgeService {
   private pendingRequests: Map<string, PendingRequest> = new Map();
   private instances: Map<string, PluginInstance> = new Map();
-  private nextClientIndex = 1;
   private requestTimeout = 30000;
 
   registerInstance(instanceId: string, role: string): string {
     let assignedRole = role;
     if (role === 'client') {
-      assignedRole = `client-${this.nextClientIndex}`;
-      this.nextClientIndex++;
+      // Assign the lowest unused client-N. Previously this used a monotonic
+      // counter that only ever incremented across the MCP process lifetime,
+      // making target=client-N non-deterministic mid-session (every playtest
+      // bumped the index, every Claude Code restart reset it to 1). Lowest-
+      // unused makes the first connected client always client-1, fills holes
+      // naturally when a player disconnects mid-playtest in a multi-client
+      // session, and needs no per-server state.
+      const used = new Set<number>();
+      for (const inst of this.instances.values()) {
+        const match = inst.role.match(/^client-(\d+)$/);
+        if (match) used.add(Number(match[1]));
+      }
+      let idx = 1;
+      while (used.has(idx)) idx++;
+      assignedRole = `client-${idx}`;
     }
 
     this.instances.set(instanceId, {

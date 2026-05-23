@@ -40,6 +40,14 @@ All four are implemented in TypeScript under [studio-plugin/src/](studio-plugin/
 
 Use the new tools when you need to inspect runtime-mutated module state (e.g., a `Net` library's cached internal counters). Use the originals when you want a clean sandbox or no playtest is running.
 
+## New in v2.10.0: cross-peer runtime log capture + auto-reconnect
+
+`get_runtime_logs` reads an in-memory ring buffer the plugin maintains on every peer's `LogService.MessageOut`. Each peer (edit, server, every client) gets its own 64 KB buffer with drop-oldest semantics, so the recent tail is always available — fixing the upstream MCP's `get_console_output` 10 KB drop-newest cap that loses recent messages after a busy boot. Default `target=all` fans out to every peer, merges by timestamp, and dedups same-message entries captured within a 2 s window across different peers (LogService reflects prints across DMs in Studio Play). Incremental polling via `since` returns only new entries.
+
+Same release fixes a long-standing reconnect issue: when the MCP server process restarts (e.g., Claude Code reconnects mid-session), the plugin now auto re-registers with the new server within ~500 ms via a `knownInstance` poll-response signal. No more manual Disconnect+Connect button-clicking in the plugin dock widget.
+
+`client-N` allocation is also now stateless lowest-unused — the first connected client is always `client-1` regardless of how many playtest cycles or Claude restarts you've done since. Verification recipes can hardcode `target=client-1`.
+
 ---
 
 ## Setup
@@ -168,7 +176,7 @@ gemini mcp add robloxstudio-inspector npx --trust -- -y @chrrxs/robloxstudio-mcp
 ---
 
 <!-- VERSION_LINE -->
-**v2.9.1** - based on boshyxd v2.7.0 + four plugin-side fixes
+**v2.10.0** - based on boshyxd v2.7.0 + four plugin-side fixes
 
 ## Building & releasing
 

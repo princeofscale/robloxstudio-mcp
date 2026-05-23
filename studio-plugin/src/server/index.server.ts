@@ -2,7 +2,12 @@ import State from "../modules/State";
 import UI from "../modules/UI";
 import Communication from "../modules/Communication";
 import ClientBroker from "../modules/ClientBroker";
+import RuntimeLogBuffer from "../modules/RuntimeLogBuffer";
 
+// Attach the per-peer LogService.MessageOut listener as early as possible so
+// boot-time prints from the user's place scripts are captured. Powers the
+// get_runtime_logs MCP tool. Idempotent; safe to call before UI.init().
+RuntimeLogBuffer.install();
 
 UI.init(plugin);
 const elements = UI.getElements();

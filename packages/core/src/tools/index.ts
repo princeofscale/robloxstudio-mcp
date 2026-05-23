@@ -802,6 +802,107 @@ return HttpService:JSONEncode({
     };
   }
 
+  async getRuntimeLogs(target?: string, since?: number, tail?: number, filter?: string) {
+    // Per-peer in-memory log buffer (see studio-plugin RuntimeLogBuffer.ts).
+    // target="all" (default) fans out to every connected instance except
+    // edit-proxy (which has no buffer, just polls for stop-playtest), merges
+    // by (ts, seq) and dedups same-message-and-level entries captured within
+    // 2 seconds on different peers - that's the LogService cross-peer
+    // reflection window noted in the chrrxs/roblox-mcp-primitives LogBuffer
+    // design (Studio mirrors a server print into both server and client
+    // LogService:GetLogHistory()).
+    const tgt = target ?? 'all';
+    const data: Record<string, unknown> = {};
+    if (since !== undefined) data.since = since;
+    if (tail !== undefined) data.tail = tail;
+    if (filter !== undefined) data.filter = filter;
+
+    if (tgt !== 'all') {
+      const response = await this.client.request('/api/get-runtime-logs', data, tgt);
+      return {
+        content: [{ type: 'text', text: JSON.stringify(response) }],
+      };
+    }
+
+    const targets = this.bridge.getInstances()
+      .filter((i) => i.role !== 'edit-proxy')
+      .map((i) => i.role);
+
+    type PeerResponse = {
+      peer?: string;
+      entries?: Entry[];
+      totalDropped?: number;
+      nextSince?: number;
+      error?: string;
+    };
+    type Entry = { seq: number; ts: number; level: string; message: string; peer?: string };
+
+    const responses = await Promise.allSettled(
+      targets.map(async (t) => {
+        const r = (await this.client.request('/api/get-runtime-logs', data, t)) as PeerResponse;
+        return { ...r, peer: t };
+      }),
+    );
+
+    const merged: Entry[] = [];
+    const perPeerNextSince: Record<string, number> = {};
+    const perPeerErrors: Record<string, string> = {};
+    let totalDropped = 0;
+
+    for (const r of responses) {
+      if (r.status !== 'fulfilled') continue;
+      const v = r.value;
+      const peer = v.peer ?? 'unknown';
+      if (v.error) {
+        perPeerErrors[peer] = v.error;
+        continue;
+      }
+      if (v.nextSince !== undefined) perPeerNextSince[peer] = v.nextSince;
+      totalDropped += v.totalDropped ?? 0;
+      for (const e of v.entries ?? []) {
+        merged.push({ ...e, peer });
+      }
+    }
+
+    merged.sort((a, b) => (a.ts !== b.ts ? a.ts - b.ts : a.seq - b.seq));
+
+    // Cross-peer dedup. LogService reflects prints across peers in Studio
+    // Play, so the same message can land in multiple peers' buffers within
+    // ~250ms (client batch) + ~700ms (peer-listener startup skew). 2s window
+    // matches the LogBuffer primitive's heuristic.
+    const DEDUP_WINDOW = 2.0;
+    const deduped: Entry[] = [];
+    for (const e of merged) {
+      const isDup = deduped.some(
+        (d) =>
+          d.message === e.message &&
+          d.level === e.level &&
+          Math.abs(d.ts - e.ts) <= DEDUP_WINDOW &&
+          d.peer !== e.peer,
+      );
+      if (!isDup) deduped.push(e);
+    }
+
+    // Re-apply tail post-merge since per-peer tail may have over-returned.
+    let final = deduped;
+    if (tail !== undefined && deduped.length > tail) {
+      final = deduped.slice(deduped.length - tail);
+    }
+
+    const body: Record<string, unknown> = {
+      entries: final,
+      totalDropped,
+      perPeerNextSince,
+    };
+    if (Object.keys(perPeerErrors).length > 0) {
+      body.perPeerErrors = perPeerErrors;
+    }
+
+    return {
+      content: [{ type: 'text', text: JSON.stringify(body) }],
+    };
+  }
+
   async startPlaytest(mode: string, numPlayers?: number) {
     if (mode !== 'play' && mode !== 'run') {
       throw new Error('mode must be "play" or "run"');

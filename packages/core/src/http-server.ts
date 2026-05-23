@@ -70,6 +70,7 @@ export const TOOL_HANDLERS: Record<string, ToolHandler> = {
   start_playtest: (tools, body) => tools.startPlaytest(body.mode, body.numPlayers),
   stop_playtest: (tools) => tools.stopPlaytest(),
   get_playtest_output: (tools, body) => tools.getPlaytestOutput(body.target),
+  get_runtime_logs: (tools, body) => tools.getRuntimeLogs(body.target, body.since, body.tail, body.filter),
   get_connected_instances: (tools) => tools.getConnectedInstances(),
   export_build: (tools, body) => tools.exportBuild(body.instancePath, body.outputId, body.style),
   create_build: (tools, body) => tools.createBuild(body.id, body.style, body.palette, body.parts, body.bounds),
@@ -219,10 +220,12 @@ export function createHttpServer(tools: RobloxStudioTools, bridge: BridgeService
     }
 
     let callerRole = 'edit';
+    let knownInstance = false;
     if (instanceId) {
       const inst = bridge.getInstances().find(i => i.instanceId === instanceId);
       if (inst) {
         callerRole = inst.role;
+        knownInstance = true;
       }
     }
 
@@ -231,11 +234,17 @@ export function createHttpServer(tools: RobloxStudioTools, bridge: BridgeService
         error: 'MCP server not connected',
         pluginConnected: true,
         mcpConnected: false,
+        knownInstance,
         request: null
       });
       return;
     }
 
+    // knownInstance=false on a non-empty instanceId signals to the plugin
+    // that the MCP server process has restarted (its in-memory instances map
+    // is empty) and the plugin should re-issue /ready. Without this, polls
+    // succeed (HTTP 200) but the server treats the plugin as anonymous and
+    // routes nothing to it for target=server / target=client-N.
     const pendingRequest = bridge.getPendingRequest(callerRole);
     if (pendingRequest) {
       res.json({
@@ -243,6 +252,7 @@ export function createHttpServer(tools: RobloxStudioTools, bridge: BridgeService
         requestId: pendingRequest.requestId,
         mcpConnected: true,
         pluginConnected: true,
+        knownInstance,
         proxyInstanceCount: proxyInstances.size
       });
     } else {
@@ -250,6 +260,7 @@ export function createHttpServer(tools: RobloxStudioTools, bridge: BridgeService
         request: null,
         mcpConnected: true,
         pluginConnected: true,
+        knownInstance,
         proxyInstanceCount: proxyInstances.size
       });
     }

@@ -12,6 +12,7 @@ import BuildHandlers from "./handlers/BuildHandlers";
 import AssetHandlers from "./handlers/AssetHandlers";
 import CaptureHandlers from "./handlers/CaptureHandlers";
 import InputHandlers from "./handlers/InputHandlers";
+import LogHandlers from "./handlers/LogHandlers";
 import { Connection, RequestPayload, PollResponse, ReadyResponse } from "../types";
 
 const instanceId = HttpService.GenerateGUID(false);
@@ -92,6 +93,8 @@ const routeMap: Record<string, Handler> = {
 	"/api/simulate-keyboard-input": InputHandlers.simulateKeyboardInput,
 
 	"/api/find-and-replace-in-scripts": ScriptHandlers.findAndReplaceInScripts,
+
+	"/api/get-runtime-logs": LogHandlers.getRuntimeLogs,
 };
 
 function processRequest(request: RequestPayload): unknown {
@@ -125,6 +128,40 @@ function getConnectionStatus(connIndex: number): string {
 	return "connecting";
 }
 
+// Throttle for re-issuing /ready after the server reports knownInstance=false.
+// Without this, every poll during the brief window where the server has just
+// restarted but hasn't seen our re-ready yet would fire a duplicate /ready.
+let lastReadyPostAt = 0;
+
+function sendReady(conn: Connection): void {
+	const now = tick();
+	if (now - lastReadyPostAt < 2) return; // throttle to ≤1 /ready every 2s
+	lastReadyPostAt = now;
+	task.spawn(() => {
+		const [readyOk, readyResult] = pcall(() => {
+			return HttpService.RequestAsync({
+				Url: `${conn.serverUrl}/ready`,
+				Method: "POST",
+				Headers: { "Content-Type": "application/json" },
+				Body: HttpService.JSONEncode({
+					instanceId,
+					role: detectRole(),
+					pluginReady: true,
+					timestamp: tick(),
+				}),
+			});
+		});
+		if (readyOk && readyResult.Success) {
+			const [parseOk, readyData] = pcall(
+				() => HttpService.JSONDecode(readyResult.Body) as ReadyResponse,
+			);
+			if (parseOk && readyData.assignedRole) {
+				assignedRole = readyData.assignedRole;
+			}
+		}
+	});
+}
+
 function pollForRequests(connIndex: number) {
 	const conn = State.getConnection(connIndex);
 	if (!conn || !conn.isActive) return;
@@ -154,6 +191,15 @@ function pollForRequests(connIndex: number) {
 		const mcpConnected = data.mcpConnected === true;
 		conn.lastHttpOk = true;
 		conn.lastMcpOk = mcpConnected;
+
+		// Server tells us when its in-memory instances map doesn't have us
+		// (e.g. after an MCP process restart). Re-issue /ready immediately so
+		// target=server/client-N start routing again. The throttle inside
+		// sendReady() prevents duplicate registrations while the server
+		// catches up.
+		if (data.knownInstance === false) {
+			sendReady(conn);
+		}
 
 		if (connIndex === State.getActiveTabIndex()) {
 			const el = ui;
@@ -298,33 +344,20 @@ function activatePlugin(connIndex?: number) {
 	}
 	UI.updateTabDot(idx);
 
-	task.spawn(() => {
-		if (!conn.heartbeatConnection) {
-			conn.heartbeatConnection = RunService.Heartbeat.Connect(() => {
-				const now = tick();
-				const currentInterval = conn.consecutiveFailures > 5 ? conn.currentRetryDelay : conn.pollInterval;
-				if (now - conn.lastPoll > currentInterval) {
-					conn.lastPoll = now;
-					pollForRequests(idx);
-				}
-			});
-		}
-
-		const [readyOk, readyResult] = pcall(() => {
-			return HttpService.RequestAsync({
-				Url: `${conn.serverUrl}/ready`,
-				Method: "POST",
-				Headers: { "Content-Type": "application/json" },
-				Body: HttpService.JSONEncode({ instanceId, role: detectRole(), pluginReady: true, timestamp: tick() }),
-			});
-		});
-		if (readyOk && readyResult.Success) {
-			const [parseOk, readyData] = pcall(() => HttpService.JSONDecode(readyResult.Body) as ReadyResponse);
-			if (parseOk && readyData.assignedRole) {
-				assignedRole = readyData.assignedRole;
+	if (!conn.heartbeatConnection) {
+		conn.heartbeatConnection = RunService.Heartbeat.Connect(() => {
+			const now = tick();
+			const currentInterval = conn.consecutiveFailures > 5 ? conn.currentRetryDelay : conn.pollInterval;
+			if (now - conn.lastPoll > currentInterval) {
+				conn.lastPoll = now;
+				pollForRequests(idx);
 			}
-		}
-	});
+		});
+	}
+
+	// Initial /ready; pollForRequests will also re-fire ready if the server
+	// later reports knownInstance=false (process restart, etc).
+	sendReady(conn);
 }
 
 function deactivatePlugin(connIndex?: number) {

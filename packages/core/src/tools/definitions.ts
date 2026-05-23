@@ -880,6 +880,32 @@ export const TOOL_DEFINITIONS: ToolDefinition[] = [
       }
     }
   },
+  {
+    name: 'get_runtime_logs',
+    category: 'read',
+    description: 'Read the in-memory log buffer captured by the plugin on each peer\'s LogService.MessageOut. Each peer (edit, server, client-N) captures ~64 KB of recent prints; oldest entries drop when over budget. Drop-oldest semantics preserve the recent tail, unlike get_console_output\'s 10 KB drop-newest cap. Caveat: peer tag reflects which peer\'s plugin captured the entry, not which peer\'s script originated it - LogService reflects prints across peers in Studio Play and origin is undetectable from inside MessageOut. target=all (default) merges all peers and dedups same-message-and-level entries captured within 2s across different peers.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        target: {
+          type: 'string',
+          description: 'Peer to read from: "edit", "server", "client-N", or "all" (default). "all" merges all peers and dedups cross-peer reflections within a 2s window.'
+        },
+        since: {
+          type: 'number',
+          description: 'Return only entries with seq > since. Pass back the previous response\'s nextSince (single-peer) or perPeerNextSince entry (target=all) for incremental polling.'
+        },
+        tail: {
+          type: 'number',
+          description: 'Return only the last N entries after since/filter is applied.'
+        },
+        filter: {
+          type: 'string',
+          description: 'Plain substring matched against each entry\'s message (no pattern semantics; literal text). Applied after since, before tail.'
+        }
+      }
+    }
+  },
 
   // === Multi-Instance ===
   {

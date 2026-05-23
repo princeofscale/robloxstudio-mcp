@@ -133,4 +133,45 @@ describe('BridgeService', () => {
       expect(bridgeService.getPendingRequest()).toBeNull();
     });
   });
+
+  describe('Client Index Allocation', () => {
+    test('first registered client gets client-1', () => {
+      const role = bridgeService.registerInstance('a', 'client');
+      expect(role).toBe('client-1');
+    });
+
+    test('sequential clients get sequential indices', () => {
+      expect(bridgeService.registerInstance('a', 'client')).toBe('client-1');
+      expect(bridgeService.registerInstance('b', 'client')).toBe('client-2');
+      expect(bridgeService.registerInstance('c', 'client')).toBe('client-3');
+    });
+
+    test('disconnecting last client frees the slot for the next join', () => {
+      bridgeService.registerInstance('a', 'client');
+      bridgeService.unregisterInstance('a');
+      // Previously this would have returned client-2 because the monotonic
+      // counter never decremented. With lowest-unused, a fresh connection
+      // after a clean disconnect goes back to client-1.
+      expect(bridgeService.registerInstance('b', 'client')).toBe('client-1');
+    });
+
+    test('disconnecting a middle client fills the hole on next join', () => {
+      bridgeService.registerInstance('a', 'client'); // client-1
+      bridgeService.registerInstance('b', 'client'); // client-2
+      bridgeService.registerInstance('c', 'client'); // client-3
+      bridgeService.unregisterInstance('b');         // frees client-2
+      // Next join should fill the hole rather than continuing to client-4.
+      expect(bridgeService.registerInstance('d', 'client')).toBe('client-2');
+      // And the next after that should grow to client-4.
+      expect(bridgeService.registerInstance('e', 'client')).toBe('client-4');
+    });
+
+    test('non-client roles pass through unchanged', () => {
+      expect(bridgeService.registerInstance('e', 'edit')).toBe('edit');
+      expect(bridgeService.registerInstance('s', 'server')).toBe('server');
+      expect(bridgeService.registerInstance('p', 'edit-proxy')).toBe('edit-proxy');
+      // And these don't reserve any client slots.
+      expect(bridgeService.registerInstance('a', 'client')).toBe('client-1');
+    });
+  });
 });
