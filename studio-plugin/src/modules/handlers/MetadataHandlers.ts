@@ -1,6 +1,7 @@
-import { CollectionService, LogService } from "@rbxts/services";
+import { CollectionService } from "@rbxts/services";
 import Utils from "../Utils";
 import Recording from "../Recording";
+import LuauExec from "../LuauExec";
 
 const ChangeHistoryService = game.GetService("ChangeHistoryService");
 const Selection = game.GetService("Selection");
@@ -262,151 +263,11 @@ function getSelection(_requestData: Record<string, unknown>) {
 function executeLuau(requestData: Record<string, unknown>) {
 	const code = requestData.code as string;
 	if (!code || code === "") return { error: "Code is required" };
-
-	// Both execution paths (loadstring + ModuleScript-require fallback) run
-	// the SAME wrapped source so they return a uniform { ok, value, output }
-	// shape. Two problems the wrapper solves at once:
-	//
-	//   1. pcall(require, m) swallows the real error and returns Roblox's
-	//      generic "Requested module experienced an error while loading"
-	//      message. Wrapping user code in xpcall INSIDE the IIFE keeps the
-	//      ModuleScript itself returning successfully — the real error +
-	//      traceback live in the returned table.
-	//
-	//   2. The ModuleScript path runs in its own environment, so a plugin-
-	//      side getfenv print/warn override never reached user prints. A
-	//      lexical local print/warn inside the IIFE captures user prints
-	//      regardless of which path executes. We also call the real global
-	//      print/warn so messages still flow to Studio's output and
-	//      LogService.MessageOut (which powers get_runtime_logs).
-	//
-	// Prints from required sub-modules don't reach this capture (they have
-	// their own env) — those go through the runtime log buffer.
-	const wrapped = `return ((function()
-\tlocal __mcp_output = {}
-\tlocal __mcp_real_print = print
-\tlocal __mcp_real_warn = warn
-\tlocal print = function(...)
-\t\t__mcp_real_print(...)
-\t\tlocal args = {...}
-\t\tlocal parts = table.create(#args)
-\t\tfor i, a in ipairs(args) do parts[i] = tostring(a) end
-\t\ttable.insert(__mcp_output, table.concat(parts, "\\t"))
-\tend
-\tlocal warn = function(...)
-\t\t__mcp_real_warn(...)
-\t\tlocal args = {...}
-\t\tlocal parts = table.create(#args)
-\t\tfor i, a in ipairs(args) do parts[i] = tostring(a) end
-\t\ttable.insert(__mcp_output, "[warn] " .. table.concat(parts, "\\t"))
-\tend
-\tlocal function __mcp_run()
-${code}
-\tend
-\tlocal ok, errOrValue = xpcall(__mcp_run, debug.traceback)
-\treturn { ok = ok, value = errOrValue, output = __mcp_output }
-end)())`;
-
-	interface WrapperResult {
-		ok?: boolean;
-		value?: unknown;
-		output?: defined;
-	}
-
-	const runViaModuleScript = (): WrapperResult => {
-		const m = new Instance("ModuleScript");
-		m.Name = "__MCPExecLuauPayload";
-		const [okSet, setErr] = pcall(() => {
-			(m as unknown as { Source: string }).Source = wrapped;
-		});
-		if (!okSet) {
-			m.Destroy();
-			error(`ModuleScript Source set failed: ${tostring(setErr)}`);
-		}
-		m.Parent = game.GetService("Workspace");
-		const [okReq, reqResult] = pcall(() => require(m));
-		m.Destroy();
-		if (!okReq) {
-			let errMsg = tostring(reqResult);
-			// pcall(require, m) collapses parse/compile failures into the
-			// canned engine string below. Walk LogService backward for the
-			// real diagnostic, which was emitted to MessageOut just before.
-			if (errMsg === "Requested module experienced an error while loading") {
-				// The parser diagnostic is emitted to LogService on the next
-				// engine frame, not synchronously with pcall(require). task.wait(0)
-				// yields too early; 50ms is enough to let the frame complete and
-				// the message land in GetLogHistory.
-				task.wait(0.05);
-				const hist = LogService.GetLogHistory();
-				for (let i = hist.size() - 1; i >= 0; i--) {
-					const e = hist[i];
-					if (
-						e.messageType === Enum.MessageType.MessageError &&
-						string.sub(e.message, 1, 31) === "Workspace.__MCPExecLuauPayload:"
-					) {
-						errMsg = e.message;
-						break;
-					}
-				}
-			}
-			error(errMsg);
-		}
-		return reqResult as unknown as WrapperResult;
-	};
-
-	const isLoadstringUnavailable = (err: unknown): boolean => {
-		const errStr = tostring(err);
-		const [matchStart] = string.find(errStr, "not available", 1, true);
-		return matchStart !== undefined;
-	};
-
-	let [success, result] = pcall(() => {
-		const [fn, compileError] = loadstring(wrapped);
-		if (!fn) {
-			if (isLoadstringUnavailable(compileError)) {
-				return runViaModuleScript();
-			}
-			error(`Compile error: ${compileError}`);
-		}
-		return fn() as unknown as WrapperResult;
-	});
-
-	// loadstring throws (not returns nil) in some plugin contexts when
-	// LoadStringEnabled=false. Catch that as a second-chance fallback.
-	if (!success && isLoadstringUnavailable(result)) {
-		[success, result] = pcall(runViaModuleScript);
-	}
-
-	if (!success) {
-		// Outer pcall failed - the wrapper itself didn't even run (e.g. compile
-		// error in the user code, or ModuleScript setup error). 'result' is the
-		// raw error string from pcall.
-		return {
-			success: false,
-			error: tostring(result),
-			output: [],
-			message: "Code execution failed",
-		};
-	}
-
-	// Wrapper executed - unpack { ok, value, output }.
-	const r = result as unknown as WrapperResult;
-	const capturedOutput = r.output as unknown as string[] | undefined;
-	const output = capturedOutput !== undefined ? capturedOutput : ([] as string[]);
-	if (r.ok === true) {
-		return {
-			success: true,
-			returnValue: r.value !== undefined ? tostring(r.value) : undefined,
-			output,
-			message: "Code executed successfully",
-		};
-	}
-	return {
-		success: false,
-		error: r.value !== undefined ? tostring(r.value) : "(unknown error)",
-		output,
-		message: "Code execution failed",
-	};
+	// All wrapping, print/warn capture, loadstring fallback, JSON-encoding
+	// of table returns, and parse-error recovery live in LuauExec so the
+	// edit/server (this handler) and the play-client (ClientBroker) take
+	// the same code path and produce identical output shapes.
+	return LuauExec.execute(code);
 }
 
 function undo(_requestData: Record<string, unknown>) {

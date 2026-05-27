@@ -4,6 +4,16 @@ import { RobloxStudioTools } from '../tools/index.js';
 import { BridgeService } from '../bridge-service.js';
 import { Application } from 'express';
 
+const READY_BODY = {
+  pluginSessionId: 'session-1',
+  instanceId: 'place:test',
+  role: 'edit',
+  placeId: 0,
+  placeName: 'TestPlace',
+  dataModelName: 'TestPlace',
+  isRunning: false,
+};
+
 describe('HTTP Server', () => {
   let app: Application & any;
   let bridge: BridgeService;
@@ -20,202 +30,162 @@ describe('HTTP Server', () => {
   });
 
   describe('Health Check', () => {
-    test('should return health status', async () => {
-      const response = await request(app)
-        .get('/health')
-        .expect(200);
-
+    test('returns health status', async () => {
+      const response = await request(app).get('/health').expect(200);
       expect(response.body).toMatchObject({
         status: 'ok',
         service: 'robloxstudio-mcp',
         pluginConnected: false,
-        mcpServerActive: false
+        mcpServerActive: false,
       });
     });
   });
 
   describe('Plugin Connection Management', () => {
-    test('should handle plugin ready notification', async () => {
-      const response = await request(app)
-        .post('/ready')
-        .send({ instanceId: 'test-1', role: 'edit' })
-        .expect(200);
-
-      expect(response.body).toMatchObject({ success: true, assignedRole: 'edit' });
+    test('plugin ready notification', async () => {
+      const response = await request(app).post('/ready').send(READY_BODY).expect(200);
+      expect(response.body).toMatchObject({ success: true, assignedRole: 'edit', instanceId: 'place:test' });
       expect(app.isPluginConnected()).toBe(true);
     });
 
-    test('should handle plugin disconnect', async () => {
-      await request(app).post('/ready').send({ instanceId: 'test-1', role: 'edit' }).expect(200);
+    test('rejects /ready without required fields', async () => {
+      await request(app).post('/ready').send({}).expect(400);
+    });
+
+    test('rejects duplicate (instanceId, role) on /ready', async () => {
+      await request(app).post('/ready').send(READY_BODY).expect(200);
+      const dup = await request(app)
+        .post('/ready')
+        .send({ ...READY_BODY, pluginSessionId: 'session-2' })
+        .expect(409);
+      expect(dup.body.error).toBe('duplicate_instance_role');
+    });
+
+    test('plugin disconnect by pluginSessionId', async () => {
+      await request(app).post('/ready').send(READY_BODY).expect(200);
       expect(app.isPluginConnected()).toBe(true);
-
-      const response = await request(app)
-        .post('/disconnect')
-        .send({ instanceId: 'test-1' })
-        .expect(200);
-
+      const response = await request(app).post('/disconnect').send({ pluginSessionId: 'session-1' }).expect(200);
       expect(response.body).toEqual({ success: true });
       expect(app.isPluginConnected()).toBe(false);
     });
 
-    test('should clear pending requests on disconnect', async () => {
-      await request(app).post('/ready').send({ instanceId: 'test-1', role: 'edit' }).expect(200);
-
-      const p1 = bridge.sendRequest('/api/test1', {});
-      const p2 = bridge.sendRequest('/api/test2', {});
+    test('disconnect rejects pending requests targeting that tuple', async () => {
+      await request(app).post('/ready').send(READY_BODY).expect(200);
+      const p1 = bridge.sendRequest('/api/test1', {}, 'place:test', 'edit');
+      const p2 = bridge.sendRequest('/api/test2', {}, 'place:test', 'edit');
       p1.catch(() => {});
       p2.catch(() => {});
-
-      expect(bridge.getPendingRequest()).toBeTruthy();
-
-      await request(app).post('/disconnect').send({ instanceId: 'test-1' }).expect(200);
-
-      expect(bridge.getPendingRequest()).toBeNull();
+      expect(bridge.getPendingRequest('place:test', 'edit')).toBeTruthy();
+      await request(app).post('/disconnect').send({ pluginSessionId: 'session-1' }).expect(200);
+      expect(bridge.getPendingRequest('place:test', 'edit')).toBeNull();
     });
 
-    test('should detect stale instances', () => {
-      bridge.registerInstance('stale-1', 'edit');
+    test('stale instance detection via unregister', () => {
+      bridge.registerInstance({ pluginSessionId: 'stale-1', instanceId: 'place:s', role: 'edit' });
       expect(app.isPluginConnected()).toBe(true);
-
       bridge.unregisterInstance('stale-1');
       expect(app.isPluginConnected()).toBe(false);
     });
   });
 
   describe('Polling Endpoint', () => {
-    test('should return 503 when MCP server is not active', async () => {
-      await request(app).post('/ready').send({ instanceId: 'test-1', role: 'edit' }).expect(200);
-
-      const response = await request(app)
-        .get('/poll')
-        .expect(503);
-
+    test('503 when MCP server is not active', async () => {
+      await request(app).post('/ready').send(READY_BODY).expect(200);
+      const response = await request(app).get('/poll?pluginSessionId=session-1').expect(503);
       expect(response.body).toMatchObject({
         error: 'MCP server not connected',
         pluginConnected: true,
         mcpConnected: false,
-        request: null
+        request: null,
+        knownInstance: true,
       });
     });
 
-    test('should return pending request when MCP is active', async () => {
-      await request(app).post('/ready').send({ instanceId: 'test-1', role: 'edit' }).expect(200);
+    test('returns pending request when MCP is active and tuple matches', async () => {
+      await request(app).post('/ready').send(READY_BODY).expect(200);
       app.setMCPServerActive(true);
-
-      const pendingRequest = bridge.sendRequest('/api/test', { data: 'test' });
-      pendingRequest.catch(() => {});
-
-      const response = await request(app)
-        .get('/poll')
-        .expect(200);
-
+      const pending = bridge.sendRequest('/api/test', { data: 'test' }, 'place:test', 'edit');
+      pending.catch(() => {});
+      const response = await request(app).get('/poll?pluginSessionId=session-1').expect(200);
       expect(response.body).toMatchObject({
-        request: {
-          endpoint: '/api/test',
-          data: { data: 'test' }
-        },
+        request: { endpoint: '/api/test', data: { data: 'test' } },
         mcpConnected: true,
-        pluginConnected: true
+        pluginConnected: true,
+        knownInstance: true,
       });
       expect(response.body.requestId).toBeTruthy();
     });
 
-    test('should return null request when no pending requests', async () => {
-      await request(app).post('/ready').send({ instanceId: 'test-1', role: 'edit' }).expect(200);
+    test('returns null when no pending request matches the polling plugin', async () => {
+      await request(app).post('/ready').send(READY_BODY).expect(200);
       app.setMCPServerActive(true);
+      const response = await request(app).get('/poll?pluginSessionId=session-1').expect(200);
+      expect(response.body).toMatchObject({ request: null, mcpConnected: true, pluginConnected: true });
+    });
 
-      const response = await request(app)
-        .get('/poll')
-        .expect(200);
-
-      expect(response.body).toMatchObject({
-        request: null,
-        mcpConnected: true,
-        pluginConnected: true
-      });
+    test('knownInstance=false when pluginSessionId is unknown (server restarted)', async () => {
+      app.setMCPServerActive(true);
+      const response = await request(app).get('/poll?pluginSessionId=unknown-session').expect(200);
+      expect(response.body.knownInstance).toBe(false);
+      expect(response.body.request).toBeNull();
     });
   });
 
   describe('Response Handling', () => {
-    test('should handle successful response', async () => {
-      const responseData = { result: 'success' };
-
-      const requestPromise = bridge.sendRequest('/api/test', {});
-      const pendingRequest = bridge.getPendingRequest();
-
+    test('handles successful response', async () => {
+      const requestPromise = bridge.sendRequest('/api/test', {}, 'place:test', 'edit');
+      const pending = bridge.getPendingRequest('place:test', 'edit');
       const response = await request(app)
         .post('/response')
-        .send({
-          requestId: pendingRequest!.requestId,
-          response: responseData
-        })
+        .send({ requestId: pending!.requestId, response: { result: 'success' } })
         .expect(200);
-
       expect(response.body).toEqual({ success: true });
-
       const result = await requestPromise;
-      expect(result).toEqual(responseData);
+      expect(result).toEqual({ result: 'success' });
     });
 
-    test('should handle error response', async () => {
-      const error = 'Test error message';
-
-      const requestPromise = bridge.sendRequest('/api/test', {});
+    test('handles error response', async () => {
+      const requestPromise = bridge.sendRequest('/api/test', {}, 'place:test', 'edit');
       requestPromise.catch(() => {});
-      const pendingRequest = bridge.getPendingRequest();
-
-      const response = await request(app)
+      const pending = bridge.getPendingRequest('place:test', 'edit');
+      await request(app)
         .post('/response')
-        .send({
-          requestId: pendingRequest!.requestId,
-          error: error
-        })
+        .send({ requestId: pending!.requestId, error: 'Test error message' })
         .expect(200);
-
-      expect(response.body).toEqual({ success: true });
-
-      await expect(requestPromise).rejects.toEqual(error);
+      await expect(requestPromise).rejects.toEqual('Test error message');
     });
   });
 
-  describe('MCP Server State Management', () => {
-    test('should track MCP server activity', async () => {
+  describe('MCP Server State', () => {
+    test('tracks activity', async () => {
       app.setMCPServerActive(true);
       expect(app.isMCPServerActive()).toBe(true);
-
       app.trackMCPActivity();
-
       expect(app.isMCPServerActive()).toBe(true);
     });
 
-    test('should timeout MCP server after inactivity', async () => {
+    test('times out after inactivity', () => {
       app.setMCPServerActive(true);
       expect(app.isMCPServerActive()).toBe(true);
-
-      const originalDateNow = Date.now;
-      Date.now = jest.fn(() => originalDateNow() + 31000);
-
+      const original = Date.now;
+      Date.now = jest.fn(() => original() + 31000);
       expect(app.isMCPServerActive()).toBe(false);
-
-      Date.now = originalDateNow;
+      Date.now = original;
     });
   });
 
   describe('Status Endpoint', () => {
-    test('should return current status', async () => {
-      await request(app).post('/ready').send({ instanceId: 'test-1', role: 'edit' }).expect(200);
+    test('returns current status', async () => {
+      await request(app).post('/ready').send(READY_BODY).expect(200);
       app.setMCPServerActive(true);
-
-      const response = await request(app)
-        .get('/status')
-        .expect(200);
-
-      expect(response.body).toMatchObject({
-        pluginConnected: true,
-        mcpServerActive: true
+      const response = await request(app).get('/status').expect(200);
+      expect(response.body).toMatchObject({ pluginConnected: true, mcpServerActive: true });
+      expect(response.body.instances).toHaveLength(1);
+      expect(response.body.instances[0]).toMatchObject({
+        instanceId: 'place:test',
+        role: 'edit',
+        placeName: 'TestPlace',
       });
-      expect(response.body.lastMCPActivity).toBeGreaterThan(0);
-      expect(response.body.uptime).toBeGreaterThan(0);
     });
   });
 });

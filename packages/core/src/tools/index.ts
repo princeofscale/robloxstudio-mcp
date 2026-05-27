@@ -1,5 +1,5 @@
 import { StudioHttpClient } from './studio-client.js';
-import { BridgeService } from '../bridge-service.js';
+import { BridgeService, RoutingFailure } from '../bridge-service.js';
 import { runBuildExecutor } from './build-executor.js';
 import { OpenCloudClient } from '../opencloud-client.js';
 import { RobloxCookieClient } from '../roblox-cookie-client.js';
@@ -71,13 +71,38 @@ function luaLongQuote(s: string): string {
 // return exactly one value". The IIFE always returns the {ok,value,output}
 // table - a single value. The DOUBLE parens around the call are load-
 // bearing: outer parens adjust the call to exactly one value.
+// Number of lines the IIFE emits BEFORE the user's code substitution. Keep
+// in sync with the wrapper layout below; mirrored as __mcp_LINE_OFFSET so
+// remapped line numbers report user-relative positions (e.g. ":1:" not
+// ":23:") in both runtime tracebacks and parser-error recovery.
+const EVAL_WRAPPER_LINE_OFFSET = 23;
+
+// Count newlines in user code so the wrapper can filter traceback frames
+// whose line numbers fall outside the user-code range (those are wrapper
+// preamble/postamble noise rather than user-actionable frames).
+function evalCountLines(s: string): number {
+  return s.split('\n').length;
+}
+
 function buildModuleScriptInvokeWrapper(opts: {
   service: 'ServerScriptService' | 'ReplicatedStorage';
   bridgeName: string;
   missingError: string;
   userCode: string;
 }): string {
+  // IIFE wrapper. Mirrors studio-plugin/src/modules/LuauExec.ts (the
+  // execute_luau path) so eval_server_runtime / eval_client_runtime produce
+  // identical output shapes: print/warn capture, custom traceback that
+  // filters wrapper + plugin frames, line-number remap so user errors
+  // report user-relative line numbers, and structured { ok, value, output }
+  // return. Forward-declared __mcp_traceback / __mcp_remap let us define
+  // them AFTER user code without disturbing the prefix offset.
+  const userLines = evalCountLines(opts.userCode);
   const wrapped = `return ((function()
+\tlocal __mcp_traceback
+\tlocal __mcp_remap
+\tlocal __mcp_LINE_OFFSET = ${EVAL_WRAPPER_LINE_OFFSET}
+\tlocal __mcp_USER_LINES = ${userLines}
 \tlocal __mcp_output = {}
 \tlocal __mcp_real_print = print
 \tlocal __mcp_real_warn = warn
@@ -98,7 +123,65 @@ function buildModuleScriptInvokeWrapper(opts: {
 \tlocal function __mcp_run()
 ${opts.userCode}
 \tend
-\tlocal ok, errOrValue = xpcall(__mcp_run, debug.traceback)
+\t__mcp_remap = function(s)
+\t\t-- Two chunk-name formats can reference our payload: the
+\t\t-- ModuleScript path "Workspace.__MCPEvalPayload:N" and the
+\t\t-- loadstring chunk "[string \\"return ((function()...\\"]:N" (if
+\t\t-- the IIFE happens to compile via loadstring). Normalize both to
+\t\t-- "user_code:N" with the offset stripped AND clamped to user
+\t\t-- range, otherwise unclosed constructs report nonsense lines deep
+\t\t-- in the wrapper. Strip the "Workspace." parent prefix too so the
+\t\t-- final output reads "user_code:N" not "Workspace.user_code:N".
+\t\tlocal function __mcp_user_line(payload_n)
+\t\t\tlocal user_n = payload_n - __mcp_LINE_OFFSET
+\t\t\tif user_n < 1 then return "1" end
+\t\t\tif user_n > __mcp_USER_LINES then return tostring(__mcp_USER_LINES) .. " (at end of input)" end
+\t\t\treturn tostring(user_n)
+\t\tend
+\t\ts = string.gsub(s, "Workspace%.__MCPEvalPayload:(%d+)", function(num)
+\t\t\tlocal n = tonumber(num)
+\t\t\tif n then return "user_code:" .. __mcp_user_line(n) end
+\t\t\treturn "user_code:" .. num
+\t\tend)
+\t\ts = string.gsub(s, "__MCPEvalPayload:(%d+)", function(num)
+\t\t\tlocal n = tonumber(num)
+\t\t\tif n then return "user_code:" .. __mcp_user_line(n) end
+\t\t\treturn "user_code:" .. num
+\t\tend)
+\t\ts = string.gsub(s, '%[string "[^"]+"%]:(%d+)', function(num)
+\t\t\tlocal n = tonumber(num)
+\t\t\tif n then return "user_code:" .. __mcp_user_line(n) end
+\t\t\treturn "user_code:" .. num
+\t\tend)
+\t\treturn s
+\tend
+\t__mcp_traceback = function(err)
+\t\tlocal raw = debug.traceback(tostring(err), 2)
+\t\tlocal kept = {}
+\t\tfor line in string.gmatch(raw, "[^\\n]+") do
+\t\t\tlocal num_str = string.match(line, "__MCPEvalPayload:(%d+)")
+\t\t\t\tor string.match(line, '%[string "[^"]+"%]:(%d+)')
+\t\t\tlocal n = num_str and tonumber(num_str)
+\t\t\t-- Strip "in function '__mcp_run'" annotation BEFORE filtering:
+\t\t\t-- user-code frames all carry that suffix (their source is
+\t\t\t-- hosted inside __mcp_run), so a naive "__mcp_" filter would
+\t\t\t-- drop every user frame and leave only the error header.
+\t\t\tline = (string.gsub(line, " in function '__mcp_run'", ""))
+\t\t\tlocal skip = string.find(line, "MCPPlugin", 1, true)
+\t\t\t\tor string.find(line, "__mcp_", 1, true)
+\t\t\t\tor string.find(line, "in function 'xpcall'", 1, true)
+\t\t\t-- Drop wrapper preamble/postamble frames whose line falls
+\t\t\t-- outside the user-code range — those are wrapper internals.
+\t\t\tif n and (n <= __mcp_LINE_OFFSET or n > __mcp_LINE_OFFSET + __mcp_USER_LINES) then
+\t\t\t\tskip = true
+\t\t\tend
+\t\t\tif not skip then
+\t\t\t\ttable.insert(kept, __mcp_remap(line))
+\t\t\tend
+\t\tend
+\t\treturn table.concat(kept, "\\n")
+\tend
+\tlocal ok, errOrValue = xpcall(__mcp_run, __mcp_traceback)
 \treturn { ok = ok, value = errOrValue, output = __mcp_output }
 end)())`;
   return `
@@ -109,6 +192,46 @@ if not bf then
 \t\tbridge = "missing",
 \t\terror = ${luaLongQuote(opts.missingError)},
 \t})
+end
+-- Outer-scope mirror of the in-IIFE __mcp_remap. Applied to parser errors
+-- we pull out of LogService (those never pass through the IIFE) and to
+-- the canned engine error string. Same offset as the IIFE's
+-- __mcp_LINE_OFFSET; covers both chunk-name formats.
+local __mcp_USER_LINES_OUTER = ${userLines}
+local function __mcp_outer_user_line(payload_n)
+\tlocal user_n = payload_n - ${EVAL_WRAPPER_LINE_OFFSET}
+\tif user_n < 1 then return "1" end
+\tif user_n > __mcp_USER_LINES_OUTER then return tostring(__mcp_USER_LINES_OUTER) .. " (at end of input)" end
+\treturn tostring(user_n)
+end
+local function __mcp_outer_remap(s)
+\ts = string.gsub(s, "Workspace%.__MCPEvalPayload:(%d+)", function(num)
+\t\tlocal n = tonumber(num)
+\t\tif n then return "user_code:" .. __mcp_outer_user_line(n) end
+\t\treturn "user_code:" .. num
+\tend)
+\ts = string.gsub(s, "__MCPEvalPayload:(%d+)", function(num)
+\t\tlocal n = tonumber(num)
+\t\tif n then return "user_code:" .. __mcp_outer_user_line(n) end
+\t\treturn "user_code:" .. num
+\tend)
+\ts = string.gsub(s, '%[string "[^"]+"%]:(%d+)', function(num)
+\t\tlocal n = tonumber(num)
+\t\tif n then return "user_code:" .. __mcp_outer_user_line(n) end
+\t\treturn "user_code:" .. num
+\tend)
+\treturn s
+end
+-- JSON-encode tables; otherwise tostring. Cycles or non-serializable
+-- values fall back to tostring instead of erroring. This is what makes
+-- eval_server_runtime / eval_client_runtime return structured table data
+-- (matching execute_luau) instead of "table: 0xaddr".
+local function __mcp_format(v)
+\tif typeof(v) == "table" then
+\t\tlocal ok, encoded = pcall(function() return HttpService:JSONEncode(v) end)
+\t\tif ok then return encoded end
+\tend
+\treturn tostring(v)
 end
 local USER_CODE = ${luaLongQuote(wrapped)}
 local m = Instance.new("ModuleScript")
@@ -143,7 +266,7 @@ if not bridgeOk then
 \t\t\tend
 \t\tend
 \tend
-\treturn HttpService:JSONEncode({ bridge = "ok", ok = false, error = errMsg })
+\treturn HttpService:JSONEncode({ bridge = "ok", ok = false, error = __mcp_outer_remap(errMsg) })
 end
 -- inner is the {ok, value, output} table from our IIFE. Defensive: if it's
 -- somehow not a table (caller bypassed the wrapper), fall back to old shape.
@@ -151,13 +274,13 @@ if typeof(inner) ~= "table" then
 \treturn HttpService:JSONEncode({
 \t\tbridge = "ok",
 \t\tok = true,
-\t\tresult = if inner == nil then nil else tostring(inner),
+\t\tresult = if inner == nil then nil else __mcp_format(inner),
 \t})
 end
 return HttpService:JSONEncode({
 \tbridge = "ok",
 \tok = inner.ok == true,
-\tresult = if inner.ok and inner.value ~= nil then tostring(inner.value) else nil,
+\tresult = if inner.ok and inner.value ~= nil then __mcp_format(inner.value) else nil,
 \terror = if not inner.ok then tostring(inner.value) else nil,
 \toutput = inner.output or {},
 })
@@ -213,9 +336,40 @@ export class RobloxStudioTools {
     this.cookieClient = new RobloxCookieClient();
   }
 
+  // Resolve (instance_id, target-role) → concrete (instanceId, role) and
+  // dispatch a single request. Throws RoutingFailure if the resolution is
+  // ambiguous, missing, or asks for fanout on a non-fanout-capable tool —
+  // the MCP transport layer surfaces it as a structured error result so
+  // the LLM can recover via the embedded data.instances list.
+  private async _callSingle(
+    endpoint: string,
+    data: any,
+    target: string | undefined,
+    instance_id: string | undefined,
+  ): Promise<any> {
+    // Pass target through as-is so resolveTarget can tell "caller didn't
+    // specify" (target=undefined → multiple_instances_connected) apart
+    // from "caller picked edit explicitly" (target='edit' → ambiguous_target).
+    // Tools that intrinsically need a specific role pass it as a string
+    // literal here; tools without a target arg pass undefined.
+    const r = this.bridge.resolveTarget({ instance_id, target });
+    if (!r.ok) throw new RoutingFailure(r.error);
+    if (r.mode !== 'single') {
+      throw new RoutingFailure({
+        code: 'target_role_not_present_on_instance',
+        message: 'This tool does not support target=all. Pick a specific role or omit target.',
+        data: {
+          instances: this.bridge.getPublicInstances(),
+          count: this.bridge.getInstances().length,
+        },
+      });
+    }
+    return this.client.request(endpoint, data, r.targetInstanceId, r.targetRole);
+  }
 
-  async getFileTree(path: string = '') {
-    const response = await this.client.request('/api/file-tree', { path });
+
+  async getFileTree(path: string = '', instance_id?: string) {
+    const response = await this._callSingle('/api/file-tree', { path }, undefined, instance_id);
     return {
       content: [
         {
@@ -226,8 +380,8 @@ export class RobloxStudioTools {
     };
   }
 
-  async searchFiles(query: string, searchType: string = 'name') {
-    const response = await this.client.request('/api/search-files', { query, searchType });
+  async searchFiles(query: string, searchType: string = 'name', instance_id?: string) {
+    const response = await this._callSingle('/api/search-files', { query, searchType }, undefined, instance_id);
     return {
       content: [
         {
@@ -239,8 +393,8 @@ export class RobloxStudioTools {
   }
 
 
-  async getPlaceInfo() {
-    const response = await this.client.request('/api/place-info', {});
+  async getPlaceInfo(instance_id?: string) {
+    const response = await this._callSingle('/api/place-info', {}, undefined, instance_id);
     return {
       content: [
         {
@@ -251,8 +405,8 @@ export class RobloxStudioTools {
     };
   }
 
-  async getServices(serviceName?: string) {
-    const response = await this.client.request('/api/services', { serviceName });
+  async getServices(serviceName?: string, instance_id?: string) {
+    const response = await this._callSingle('/api/services', { serviceName }, undefined, instance_id);
     return {
       content: [
         {
@@ -263,12 +417,12 @@ export class RobloxStudioTools {
     };
   }
 
-  async searchObjects(query: string, searchType: string = 'name', propertyName?: string) {
-    const response = await this.client.request('/api/search-objects', {
+  async searchObjects(query: string, searchType: string = 'name', propertyName?: string, instance_id?: string) {
+    const response = await this._callSingle('/api/search-objects', {
       query,
       searchType,
       propertyName
-    });
+    }, undefined, instance_id);
     return {
       content: [
         {
@@ -280,11 +434,11 @@ export class RobloxStudioTools {
   }
 
 
-  async getInstanceProperties(instancePath: string, excludeSource?: boolean) {
+  async getInstanceProperties(instancePath: string, excludeSource?: boolean, instance_id?: string) {
     if (!instancePath) {
       throw new Error('Instance path is required for get_instance_properties');
     }
-    const response = await this.client.request('/api/instance-properties', { instancePath, excludeSource });
+    const response = await this._callSingle('/api/instance-properties', { instancePath, excludeSource }, undefined, instance_id);
     return {
       content: [
         {
@@ -295,11 +449,11 @@ export class RobloxStudioTools {
     };
   }
 
-  async getInstanceChildren(instancePath: string) {
+  async getInstanceChildren(instancePath: string, instance_id?: string) {
     if (!instancePath) {
       throw new Error('Instance path is required for get_instance_children');
     }
-    const response = await this.client.request('/api/instance-children', { instancePath });
+    const response = await this._callSingle('/api/instance-children', { instancePath }, undefined, instance_id);
     return {
       content: [
         {
@@ -310,14 +464,14 @@ export class RobloxStudioTools {
     };
   }
 
-  async searchByProperty(propertyName: string, propertyValue: string) {
+  async searchByProperty(propertyName: string, propertyValue: string, instance_id?: string) {
     if (!propertyName || !propertyValue) {
       throw new Error('Property name and value are required for search_by_property');
     }
-    const response = await this.client.request('/api/search-by-property', {
+    const response = await this._callSingle('/api/search-by-property', {
       propertyName,
       propertyValue
-    });
+    }, undefined, instance_id);
     return {
       content: [
         {
@@ -328,11 +482,11 @@ export class RobloxStudioTools {
     };
   }
 
-  async getClassInfo(className: string) {
+  async getClassInfo(className: string, instance_id?: string) {
     if (!className) {
       throw new Error('Class name is required for get_class_info');
     }
-    const response = await this.client.request('/api/class-info', { className });
+    const response = await this._callSingle('/api/class-info', { className }, undefined, instance_id);
     return {
       content: [
         {
@@ -344,12 +498,12 @@ export class RobloxStudioTools {
   }
 
 
-  async getProjectStructure(path?: string, maxDepth?: number, scriptsOnly?: boolean) {
-    const response = await this.client.request('/api/project-structure', {
+  async getProjectStructure(path?: string, maxDepth?: number, scriptsOnly?: boolean, instance_id?: string) {
+    const response = await this._callSingle('/api/project-structure', {
       path,
       maxDepth,
       scriptsOnly
-    });
+    }, undefined, instance_id);
     return {
       content: [
         {
@@ -362,15 +516,15 @@ export class RobloxStudioTools {
 
 
 
-  async setProperty(instancePath: string, propertyName: string, propertyValue: any) {
+  async setProperty(instancePath: string, propertyName: string, propertyValue: any, instance_id?: string) {
     if (!instancePath || !propertyName) {
       throw new Error('Instance path and property name are required for set_property');
     }
-    const response = await this.client.request('/api/set-property', {
+    const response = await this._callSingle('/api/set-property', {
       instancePath,
       propertyName,
       propertyValue
-    });
+    }, undefined, instance_id);
     return {
       content: [
         {
@@ -381,23 +535,23 @@ export class RobloxStudioTools {
     };
   }
 
-  async setProperties(instancePath: string, properties: Record<string, any>) {
+  async setProperties(instancePath: string, properties: Record<string, any>, instance_id?: string) {
     if (!instancePath || !properties) {
       throw new Error('instancePath and properties are required for set_properties');
     }
-    const response = await this.client.request('/api/set-properties', { instancePath, properties });
+    const response = await this._callSingle('/api/set-properties', { instancePath, properties }, undefined, instance_id);
     return { content: [{ type: 'text', text: JSON.stringify(response) }] };
   }
 
-  async massSetProperty(paths: string[], propertyName: string, propertyValue: any) {
+  async massSetProperty(paths: string[], propertyName: string, propertyValue: any, instance_id?: string) {
     if (!paths || paths.length === 0 || !propertyName) {
       throw new Error('Paths array and property name are required for mass_set_property');
     }
-    const response = await this.client.request('/api/mass-set-property', {
+    const response = await this._callSingle('/api/mass-set-property', {
       paths,
       propertyName,
       propertyValue
-    });
+    }, undefined, instance_id);
     return {
       content: [
         {
@@ -408,14 +562,14 @@ export class RobloxStudioTools {
     };
   }
 
-  async massGetProperty(paths: string[], propertyName: string) {
+  async massGetProperty(paths: string[], propertyName: string, instance_id?: string) {
     if (!paths || paths.length === 0 || !propertyName) {
       throw new Error('Paths array and property name are required for mass_get_property');
     }
-    const response = await this.client.request('/api/mass-get-property', {
+    const response = await this._callSingle('/api/mass-get-property', {
       paths,
       propertyName
-    });
+    }, undefined, instance_id);
     return {
       content: [
         {
@@ -427,16 +581,16 @@ export class RobloxStudioTools {
   }
 
 
-  async createObject(className: string, parent: string, name?: string, properties?: Record<string, any>) {
+  async createObject(className: string, parent: string, name?: string, properties?: Record<string, any>, instance_id?: string) {
     if (!className || !parent) {
       throw new Error('Class name and parent are required for create_object');
     }
-    const response = await this.client.request('/api/create-object', {
+    const response = await this._callSingle('/api/create-object', {
       className,
       parent,
       name,
       properties
-    });
+    }, undefined, instance_id);
     return {
       content: [
         {
@@ -447,11 +601,11 @@ export class RobloxStudioTools {
     };
   }
 
-  async massCreateObjects(objects: Array<{className: string, parent: string, name?: string, properties?: Record<string, any>}>) {
+  async massCreateObjects(objects: Array<{className: string, parent: string, name?: string, properties?: Record<string, any>}>, instance_id?: string) {
     if (!objects || objects.length === 0) {
       throw new Error('Objects array is required for mass_create_objects');
     }
-    const response = await this.client.request('/api/mass-create-objects', { objects });
+    const response = await this._callSingle('/api/mass-create-objects', { objects }, undefined, instance_id);
     return {
       content: [
         {
@@ -462,11 +616,11 @@ export class RobloxStudioTools {
     };
   }
 
-  async deleteObject(instancePath: string) {
+  async deleteObject(instancePath: string, instance_id?: string) {
     if (!instancePath) {
       throw new Error('Instance path is required for delete_object');
     }
-    const response = await this.client.request('/api/delete-object', { instancePath });
+    const response = await this._callSingle('/api/delete-object', { instancePath }, undefined, instance_id);
     return {
       content: [
         {
@@ -488,16 +642,17 @@ export class RobloxStudioTools {
       scaleOffset?: [number, number, number];
       propertyVariations?: Record<string, any[]>;
       targetParents?: string[];
-    }
+    },
+    instance_id?: string
   ) {
     if (!instancePath || count < 1) {
       throw new Error('Instance path and count > 0 are required for smart_duplicate');
     }
-    const response = await this.client.request('/api/smart-duplicate', {
+    const response = await this._callSingle('/api/smart-duplicate', {
       instancePath,
       count,
       options
-    });
+    }, undefined, instance_id);
     return {
       content: [
         {
@@ -520,12 +675,13 @@ export class RobloxStudioTools {
         propertyVariations?: Record<string, any[]>;
         targetParents?: string[];
       }
-    }>
+    }>,
+    instance_id?: string
   ) {
     if (!duplications || duplications.length === 0) {
       throw new Error('Duplications array is required for mass_duplicate');
     }
-    const response = await this.client.request('/api/mass-duplicate', { duplications });
+    const response = await this._callSingle('/api/mass-duplicate', { duplications }, undefined, instance_id);
     return {
       content: [
         {
@@ -539,11 +695,11 @@ export class RobloxStudioTools {
 
 
 
-  async getScriptSource(instancePath: string, startLine?: number, endLine?: number) {
+  async getScriptSource(instancePath: string, startLine?: number, endLine?: number, instance_id?: string) {
     if (!instancePath) {
       throw new Error('Instance path is required for get_script_source');
     }
-    const response = await this.client.request('/api/get-script-source', { instancePath, startLine, endLine });
+    const response = await this._callSingle('/api/get-script-source', { instancePath, startLine, endLine }, undefined, instance_id);
 
     if (response.error) {
       return { content: [{ type: 'text', text: `Error: ${response.error}` }] };
@@ -603,11 +759,11 @@ export class RobloxStudioTools {
     };
   }
 
-  async setScriptSource(instancePath: string, source: string) {
+  async setScriptSource(instancePath: string, source: string, instance_id?: string) {
     if (!instancePath || typeof source !== 'string') {
       throw new Error('Instance path and source code string are required for set_script_source');
     }
-    const response = await this.client.request('/api/set-script-source', { instancePath, source });
+    const response = await this._callSingle('/api/set-script-source', { instancePath, source }, undefined, instance_id);
     return {
       content: [
         {
@@ -619,13 +775,13 @@ export class RobloxStudioTools {
   }
 
 
-  async editScriptLines(instancePath: string, oldString: string, newString: string, startLine?: number) {
+  async editScriptLines(instancePath: string, oldString: string, newString: string, startLine?: number, instance_id?: string) {
     if (!instancePath || typeof oldString !== 'string' || typeof newString !== 'string') {
       throw new Error('Instance path, old_string, and new_string are required for edit_script_lines');
     }
     const payload: Record<string, unknown> = { instancePath, old_string: oldString, new_string: newString };
     if (startLine !== undefined) payload.startLine = startLine;
-    const response = await this.client.request('/api/edit-script-lines', payload);
+    const response = await this._callSingle('/api/edit-script-lines', payload, undefined, instance_id);
     return {
       content: [
         {
@@ -636,11 +792,11 @@ export class RobloxStudioTools {
     };
   }
 
-  async insertScriptLines(instancePath: string, afterLine: number, newContent: string) {
+  async insertScriptLines(instancePath: string, afterLine: number, newContent: string, instance_id?: string) {
     if (!instancePath || typeof newContent !== 'string') {
       throw new Error('Instance path and newContent are required for insert_script_lines');
     }
-    const response = await this.client.request('/api/insert-script-lines', { instancePath, afterLine: afterLine || 0, newContent });
+    const response = await this._callSingle('/api/insert-script-lines', { instancePath, afterLine: afterLine || 0, newContent }, undefined, instance_id);
     return {
       content: [
         {
@@ -651,11 +807,11 @@ export class RobloxStudioTools {
     };
   }
 
-  async deleteScriptLines(instancePath: string, startLine: number, endLine: number) {
+  async deleteScriptLines(instancePath: string, startLine: number, endLine: number, instance_id?: string) {
     if (!instancePath || !startLine || !endLine) {
       throw new Error('Instance path, startLine, and endLine are required for delete_script_lines');
     }
-    const response = await this.client.request('/api/delete-script-lines', { instancePath, startLine, endLine });
+    const response = await this._callSingle('/api/delete-script-lines', { instancePath, startLine, endLine }, undefined, instance_id);
     return {
       content: [
         {
@@ -678,15 +834,16 @@ export class RobloxStudioTools {
       filesOnly?: boolean;
       path?: string;
       classFilter?: string;
-    }
+    },
+    instance_id?: string
   ) {
     if (!pattern) {
       throw new Error('Pattern is required for grep_scripts');
     }
-    const response = await this.client.request('/api/grep-scripts', {
+    const response = await this._callSingle('/api/grep-scripts', {
       pattern,
       ...options
-    });
+    }, undefined, instance_id);
     return {
       content: [
         {
@@ -697,11 +854,11 @@ export class RobloxStudioTools {
     };
   }
 
-  async setAttribute(instancePath: string, attributeName: string, attributeValue: any, valueType?: string) {
+  async setAttribute(instancePath: string, attributeName: string, attributeValue: any, valueType?: string, instance_id?: string) {
     if (!instancePath || !attributeName) {
       throw new Error('Instance path and attribute name are required for set_attribute');
     }
-    const response = await this.client.request('/api/set-attribute', { instancePath, attributeName, attributeValue, valueType });
+    const response = await this._callSingle('/api/set-attribute', { instancePath, attributeName, attributeValue, valueType }, undefined, instance_id);
     return {
       content: [
         {
@@ -712,11 +869,11 @@ export class RobloxStudioTools {
     };
   }
 
-  async getAttributes(instancePath: string) {
+  async getAttributes(instancePath: string, instance_id?: string) {
     if (!instancePath) {
       throw new Error('Instance path is required for get_attributes');
     }
-    const response = await this.client.request('/api/get-attributes', { instancePath });
+    const response = await this._callSingle('/api/get-attributes', { instancePath }, undefined, instance_id);
     return {
       content: [
         {
@@ -727,11 +884,11 @@ export class RobloxStudioTools {
     };
   }
 
-  async deleteAttribute(instancePath: string, attributeName: string) {
+  async deleteAttribute(instancePath: string, attributeName: string, instance_id?: string) {
     if (!instancePath || !attributeName) {
       throw new Error('Instance path and attribute name are required for delete_attribute');
     }
-    const response = await this.client.request('/api/delete-attribute', { instancePath, attributeName });
+    const response = await this._callSingle('/api/delete-attribute', { instancePath, attributeName }, undefined, instance_id);
     return {
       content: [
         {
@@ -743,11 +900,11 @@ export class RobloxStudioTools {
   }
 
 
-  async getTags(instancePath: string) {
+  async getTags(instancePath: string, instance_id?: string) {
     if (!instancePath) {
       throw new Error('Instance path is required for get_tags');
     }
-    const response = await this.client.request('/api/get-tags', { instancePath });
+    const response = await this._callSingle('/api/get-tags', { instancePath }, undefined, instance_id);
     return {
       content: [
         {
@@ -758,11 +915,11 @@ export class RobloxStudioTools {
     };
   }
 
-  async addTag(instancePath: string, tagName: string) {
+  async addTag(instancePath: string, tagName: string, instance_id?: string) {
     if (!instancePath || !tagName) {
       throw new Error('Instance path and tag name are required for add_tag');
     }
-    const response = await this.client.request('/api/add-tag', { instancePath, tagName });
+    const response = await this._callSingle('/api/add-tag', { instancePath, tagName }, undefined, instance_id);
     return {
       content: [
         {
@@ -773,11 +930,11 @@ export class RobloxStudioTools {
     };
   }
 
-  async removeTag(instancePath: string, tagName: string) {
+  async removeTag(instancePath: string, tagName: string, instance_id?: string) {
     if (!instancePath || !tagName) {
       throw new Error('Instance path and tag name are required for remove_tag');
     }
-    const response = await this.client.request('/api/remove-tag', { instancePath, tagName });
+    const response = await this._callSingle('/api/remove-tag', { instancePath, tagName }, undefined, instance_id);
     return {
       content: [
         {
@@ -788,11 +945,11 @@ export class RobloxStudioTools {
     };
   }
 
-  async getTagged(tagName: string) {
+  async getTagged(tagName: string, instance_id?: string) {
     if (!tagName) {
       throw new Error('Tag name is required for get_tagged');
     }
-    const response = await this.client.request('/api/get-tagged', { tagName });
+    const response = await this._callSingle('/api/get-tagged', { tagName }, undefined, instance_id);
     return {
       content: [
         {
@@ -803,8 +960,8 @@ export class RobloxStudioTools {
     };
   }
 
-  async getSelection() {
-    const response = await this.client.request('/api/get-selection', {});
+  async getSelection(instance_id?: string) {
+    const response = await this._callSingle('/api/get-selection', {}, undefined, instance_id);
     return {
       content: [
         {
@@ -815,11 +972,11 @@ export class RobloxStudioTools {
     };
   }
 
-  async executeLuau(code: string, target?: string) {
+  async executeLuau(code: string, target?: string, instance_id?: string) {
     if (!code) {
       throw new Error('Code is required for execute_luau');
     }
-    const response = await this.client.request('/api/execute-luau', { code }, target || 'edit');
+    const response = await this._callSingle('/api/execute-luau', { code }, target || 'edit', instance_id);
     return {
       content: [
         {
@@ -830,7 +987,7 @@ export class RobloxStudioTools {
     };
   }
 
-  async evalServerRuntime(code: string) {
+  async evalServerRuntime(code: string, instance_id?: string) {
     if (!code) {
       throw new Error('Code is required for eval_server_runtime');
     }
@@ -851,7 +1008,7 @@ export class RobloxStudioTools {
       missingError: 'ServerEvalBridge not installed. Bridges are auto-installed at start_playtest and removed at stop_playtest. Start a playtest before calling eval_server_runtime.',
       userCode: code,
     });
-    const response = await this.client.request('/api/execute-luau', { code: wrapper }, 'server');
+    const response = await this._callSingle('/api/execute-luau', { code: wrapper }, 'server', instance_id);
     return {
       content: [
         {
@@ -862,7 +1019,7 @@ export class RobloxStudioTools {
     };
   }
 
-  async evalClientRuntime(code: string, target?: string) {
+  async evalClientRuntime(code: string, target?: string, instance_id?: string) {
     if (!code) {
       throw new Error('Code is required for eval_client_runtime');
     }
@@ -879,7 +1036,7 @@ export class RobloxStudioTools {
       missingError: 'ClientEvalBridge not installed. Bridges are auto-installed at start_playtest and removed at stop_playtest. Start a playtest before calling eval_client_runtime.',
       userCode: code,
     });
-    const response = await this.client.request('/api/execute-luau', { code: wrapper }, clientTarget);
+    const response = await this._callSingle('/api/execute-luau', { code: wrapper }, clientTarget, instance_id);
     return {
       content: [
         {
@@ -890,7 +1047,7 @@ export class RobloxStudioTools {
     };
   }
 
-  async getRuntimeLogs(target?: string, since?: number, tail?: number, filter?: string) {
+  async getRuntimeLogs(target?: string, since?: number, tail?: number, filter?: string, instance_id?: string) {
     // Per-peer in-memory log buffer (see studio-plugin RuntimeLogBuffer.ts).
     // target="all" (default) fans out to every connected instance except
     // edit-proxy (which has no buffer, just polls for stop-playtest), merges
@@ -905,16 +1062,37 @@ export class RobloxStudioTools {
     if (tail !== undefined) data.tail = tail;
     if (filter !== undefined) data.filter = filter;
 
-    if (tgt !== 'all') {
-      const response = await this.client.request('/api/get-runtime-logs', data, tgt);
+    // Resolve once. Single mode → one request and pass-through. Fanout
+    // mode → iterate the resolved (instanceId, role) tuples; results keyed
+    // by role within the selected instance, so duplicate roles across
+    // different places no longer collapse (the v2.11.x bug).
+    const resolved = this.bridge.resolveTarget({ instance_id, target: tgt });
+    if (!resolved.ok) throw new RoutingFailure(resolved.error);
+
+    if (resolved.mode === 'single') {
+      const response = (await this.client.request(
+        '/api/get-runtime-logs',
+        data,
+        resolved.targetInstanceId,
+        resolved.targetRole,
+      )) as { peer?: string; entries?: Array<{ peer?: string }> } & Record<string, unknown>;
+      // The plugin-side handler tags entries with the generic "client" peer
+      // because the client DM doesn't know its server-assigned client-N
+      // role. The fanout path overrides this with the resolved role; mirror
+      // that here for the single-peer path so target=client-1 doesn't
+      // return response.peer="client" with entries[].peer="client-1".
+      response.peer = resolved.targetRole;
+      if (Array.isArray(response.entries)) {
+        for (const e of response.entries) {
+          if (e.peer !== undefined) e.peer = resolved.targetRole;
+        }
+      }
       return {
         content: [{ type: 'text', text: JSON.stringify(response) }],
       };
     }
 
-    const targets = this.bridge.getInstances()
-      .filter((i) => i.role !== 'edit-proxy')
-      .map((i) => i.role);
+    const targets = resolved.targets.filter((t) => t.targetRole !== 'edit-proxy');
 
     type PeerResponse = {
       peer?: string;
@@ -927,8 +1105,13 @@ export class RobloxStudioTools {
 
     const responses = await Promise.allSettled(
       targets.map(async (t) => {
-        const r = (await this.client.request('/api/get-runtime-logs', data, t)) as PeerResponse;
-        return { ...r, peer: t };
+        const r = (await this.client.request(
+          '/api/get-runtime-logs',
+          data,
+          t.targetInstanceId,
+          t.targetRole,
+        )) as PeerResponse;
+        return { ...r, peer: t.targetRole };
       }),
     );
 
@@ -991,7 +1174,7 @@ export class RobloxStudioTools {
     };
   }
 
-  async startPlaytest(mode: string, numPlayers?: number) {
+  async startPlaytest(mode: string, numPlayers?: number, instance_id?: string) {
     if (mode !== 'play' && mode !== 'run') {
       throw new Error('mode must be "play" or "run"');
     }
@@ -999,7 +1182,7 @@ export class RobloxStudioTools {
     if (numPlayers !== undefined) {
       data.numPlayers = numPlayers;
     }
-    const response = await this.client.request('/api/start-playtest', data);
+    const response = await this._callSingle('/api/start-playtest', data, undefined, instance_id);
     return {
       content: [
         {
@@ -1010,20 +1193,20 @@ export class RobloxStudioTools {
     };
   }
 
-  async stopPlaytest() {
+  async stopPlaytest(instance_id?: string) {
     // The edit DM's stopPlaytest handler sets a plugin:SetSetting flag that
     // StopPlayMonitor reads from inside the play-server DM (the only DM where
     // StudioTestService:EndTest is legal). No edit-proxy peer registration is
     // involved — the cross-DM signal works regardless of MCP server state,
     // peer-role bookkeeping, or restart cycles.
-    const response = await this.client.request('/api/stop-playtest', {}, 'edit');
+    const response = await this._callSingle('/api/stop-playtest', {}, 'edit', instance_id);
     return {
       content: [{ type: 'text', text: JSON.stringify(response) }],
     };
   }
 
-  async getPlaytestOutput(target?: string) {
-    const response = await this.client.request('/api/get-playtest-output', {}, target || 'edit');
+  async getPlaytestOutput(target?: string, instance_id?: string) {
+    const response = await this._callSingle('/api/get-playtest-output', {}, target || 'edit', instance_id);
     return {
       content: [
         {
@@ -1035,7 +1218,7 @@ export class RobloxStudioTools {
   }
 
   async getConnectedInstances() {
-    const instances = this.bridge.getInstances();
+    const instances = this.bridge.getPublicInstances();
     return {
       content: [
         {
@@ -1046,8 +1229,8 @@ export class RobloxStudioTools {
     };
   }
 
-  async undo() {
-    const response = await this.client.request('/api/undo', {});
+  async undo(instance_id?: string) {
+    const response = await this._callSingle('/api/undo', {}, undefined, instance_id);
     return {
       content: [
         {
@@ -1058,8 +1241,8 @@ export class RobloxStudioTools {
     };
   }
 
-  async redo() {
-    const response = await this.client.request('/api/redo', {});
+  async redo(instance_id?: string) {
+    const response = await this._callSingle('/api/redo', {}, undefined, instance_id);
     return {
       content: [
         {
@@ -1148,15 +1331,15 @@ export class RobloxStudioTools {
     return result;
   }
 
-  async exportBuild(instancePath: string, outputId?: string, style: string = 'misc') {
+  async exportBuild(instancePath: string, outputId?: string, style: string = 'misc', instance_id?: string) {
     if (!instancePath) {
       throw new Error('Instance path is required for export_build');
     }
-    const response = await this.client.request('/api/export-build', {
+    const response = await this._callSingle('/api/export-build', {
       instancePath,
       outputId,
       style
-    }) as any;
+    }, undefined, instance_id) as any;
 
     // Auto-save to library
     if (response && response.success && response.buildData) {
@@ -1380,7 +1563,7 @@ export class RobloxStudioTools {
     };
   }
 
-  async importBuild(buildData: Record<string, any> | string, targetPath: string, position?: [number, number, number]) {
+  async importBuild(buildData: Record<string, any> | string, targetPath: string, position?: [number, number, number], instance_id?: string) {
     if (!buildData || !targetPath) {
       throw new Error('buildData (or library ID string) and targetPath are required for import_build');
     }
@@ -1404,11 +1587,11 @@ export class RobloxStudioTools {
       resolved = buildData;
     }
 
-    const response = await this.client.request('/api/import-build', {
+    const response = await this._callSingle('/api/import-build', {
       buildData: resolved,
       targetPath,
       position
-    });
+    }, undefined, instance_id);
     return {
       content: [
         {
@@ -1455,11 +1638,11 @@ export class RobloxStudioTools {
     };
   }
 
-  async searchMaterials(query?: string, maxResults?: number) {
-    const response = await this.client.request('/api/search-materials', {
+  async searchMaterials(query?: string, maxResults?: number, instance_id?: string) {
+    const response = await this._callSingle('/api/search-materials', {
       query: query ?? '',
       maxResults: maxResults ?? 50
-    });
+    }, undefined, instance_id);
     return {
       content: [
         {
@@ -1516,7 +1699,8 @@ export class RobloxStudioTools {
       >;
       custom?: Array<{ n: string; o: number[]; palette: Record<string, [string, string]>; parts: any[][] }>;
     },
-    targetPath: string = 'game.Workspace'
+    targetPath: string = 'game.Workspace',
+    instance_id?: string
   ) {
     if (!sceneData) {
       throw new Error('sceneData is required for import_scene');
@@ -1635,10 +1819,10 @@ export class RobloxStudioTools {
     }
 
     // Send expanded builds to plugin
-    const response = await this.client.request('/api/import-scene', {
+    const response = await this._callSingle('/api/import-scene', {
       expandedBuilds,
       targetPath
-    });
+    }, undefined, instance_id);
     return {
       content: [
         {
@@ -1748,15 +1932,15 @@ export class RobloxStudioTools {
     };
   }
 
-  async insertAsset(assetId: number, parentPath?: string, position?: { x: number; y: number; z: number }) {
+  async insertAsset(assetId: number, parentPath?: string, position?: { x: number; y: number; z: number }, instance_id?: string) {
     if (!assetId) {
       throw new Error('Asset ID is required for insert_asset');
     }
-    const response = await this.client.request('/api/insert-asset', {
+    const response = await this._callSingle('/api/insert-asset', {
       assetId,
       parentPath: parentPath || 'game.Workspace',
       position
-    });
+    }, undefined, instance_id);
     return {
       content: [{
         type: 'text',
@@ -1765,15 +1949,15 @@ export class RobloxStudioTools {
     };
   }
 
-  async previewAsset(assetId: number, includeProperties?: boolean, maxDepth?: number) {
+  async previewAsset(assetId: number, includeProperties?: boolean, maxDepth?: number, instance_id?: string) {
     if (!assetId) {
       throw new Error('Asset ID is required for preview_asset');
     }
-    const response = await this.client.request('/api/preview-asset', {
+    const response = await this._callSingle('/api/preview-asset', {
       assetId,
       includeProperties: includeProperties ?? true,
       maxDepth: maxDepth ?? 10
-    });
+    }, undefined, instance_id);
     return {
       content: [{
         type: 'text',
@@ -1796,7 +1980,7 @@ export class RobloxStudioTools {
       return id
     `;
     try {
-      const response = await this.client.request('/api/execute-luau', { code }, 'edit') as { returnValue?: unknown };
+      const response = await this._callSingle('/api/execute-luau', { code }, 'edit', undefined) as { returnValue?: unknown };
       const returnValue = response?.returnValue;
       if (returnValue !== undefined && returnValue !== null && /^\d+$/.test(String(returnValue))) {
         return String(returnValue);
@@ -1901,13 +2085,13 @@ export class RobloxStudioTools {
     };
   }
 
-  async simulateMouseInput(action: string, x: number, y: number, button?: string, scrollDirection?: string, target?: string) {
+  async simulateMouseInput(action: string, x: number, y: number, button?: string, scrollDirection?: string, target?: string, instance_id?: string) {
     if (!action) {
       throw new Error('action is required for simulate_mouse_input');
     }
-    const response = await this.client.request('/api/simulate-mouse-input', {
+    const response = await this._callSingle('/api/simulate-mouse-input', {
       action, x, y, button, scrollDirection
-    }, target || 'edit');
+    }, target || 'edit', instance_id);
     return {
       content: [{
         type: 'text',
@@ -1916,13 +2100,13 @@ export class RobloxStudioTools {
     };
   }
 
-  async simulateKeyboardInput(keyCode: string, action?: string, duration?: number, target?: string) {
+  async simulateKeyboardInput(keyCode: string, action?: string, duration?: number, target?: string, instance_id?: string) {
     if (!keyCode) {
       throw new Error('keyCode is required for simulate_keyboard_input');
     }
-    const response = await this.client.request('/api/simulate-keyboard-input', {
+    const response = await this._callSingle('/api/simulate-keyboard-input', {
       keyCode, action, duration
-    }, target || 'edit');
+    }, target || 'edit', instance_id);
     return {
       content: [{
         type: 'text',
@@ -1931,13 +2115,13 @@ export class RobloxStudioTools {
     };
   }
 
-  async characterNavigation(position?: number[], instancePath?: string, waitForCompletion?: boolean, timeout?: number, target?: string) {
+  async characterNavigation(position?: number[], instancePath?: string, waitForCompletion?: boolean, timeout?: number, target?: string, instance_id?: string) {
     if (!position && !instancePath) {
       throw new Error('Either position or instancePath is required for character_navigation');
     }
-    const response = await this.client.request('/api/character-navigation', {
+    const response = await this._callSingle('/api/character-navigation', {
       position, instancePath, waitForCompletion, timeout
-    }, target || 'edit');
+    }, target || 'edit', instance_id);
     return {
       content: [{
         type: 'text',
@@ -1946,40 +2130,40 @@ export class RobloxStudioTools {
     };
   }
 
-  async cloneObject(instancePath: string, targetParentPath: string) {
+  async cloneObject(instancePath: string, targetParentPath: string, instance_id?: string) {
     if (!instancePath || !targetParentPath) {
       throw new Error('instancePath and targetParentPath are required for clone_object');
     }
-    const response = await this.client.request('/api/clone-object', { instancePath, targetParentPath });
+    const response = await this._callSingle('/api/clone-object', { instancePath, targetParentPath }, undefined, instance_id);
     return { content: [{ type: 'text', text: JSON.stringify(response) }] };
   }
 
-  async getDescendants(instancePath: string, maxDepth?: number, classFilter?: string) {
+  async getDescendants(instancePath: string, maxDepth?: number, classFilter?: string, instance_id?: string) {
     if (!instancePath) {
       throw new Error('instancePath is required for get_descendants');
     }
-    const response = await this.client.request('/api/get-descendants', { instancePath, maxDepth, classFilter });
+    const response = await this._callSingle('/api/get-descendants', { instancePath, maxDepth, classFilter }, undefined, instance_id);
     return { content: [{ type: 'text', text: JSON.stringify(response) }] };
   }
 
-  async compareInstances(instancePathA: string, instancePathB: string) {
+  async compareInstances(instancePathA: string, instancePathB: string, instance_id?: string) {
     if (!instancePathA || !instancePathB) {
       throw new Error('instancePathA and instancePathB are required for compare_instances');
     }
-    const response = await this.client.request('/api/compare-instances', { instancePathA, instancePathB });
+    const response = await this._callSingle('/api/compare-instances', { instancePathA, instancePathB }, undefined, instance_id);
     return { content: [{ type: 'text', text: JSON.stringify(response) }] };
   }
 
-  async getOutputLog(maxEntries?: number, messageType?: string) {
-    const response = await this.client.request('/api/get-output-log', { maxEntries, messageType });
+  async getOutputLog(maxEntries?: number, messageType?: string, instance_id?: string) {
+    const response = await this._callSingle('/api/get-output-log', { maxEntries, messageType }, undefined, instance_id);
     return { content: [{ type: 'text', text: JSON.stringify(response) }] };
   }
 
-  async bulkSetAttributes(instancePath: string, attributes: Record<string, unknown>) {
+  async bulkSetAttributes(instancePath: string, attributes: Record<string, unknown>, instance_id?: string) {
     if (!instancePath || !attributes) {
       throw new Error('instancePath and attributes are required for bulk_set_attributes');
     }
-    const response = await this.client.request('/api/bulk-set-attributes', { instancePath, attributes });
+    const response = await this._callSingle('/api/bulk-set-attributes', { instancePath, attributes }, undefined, instance_id);
     return { content: [{ type: 'text', text: JSON.stringify(response) }] };
   }
 
@@ -1993,7 +2177,8 @@ export class RobloxStudioTools {
       classFilter?: string;
       dryRun?: boolean;
       maxReplacements?: number;
-    }
+    },
+    instance_id?: string
   ) {
     if (!pattern) {
       throw new Error('pattern is required for find_and_replace_in_scripts');
@@ -2001,11 +2186,11 @@ export class RobloxStudioTools {
     if (replacement === undefined || replacement === null) {
       throw new Error('replacement is required for find_and_replace_in_scripts');
     }
-    const response = await this.client.request('/api/find-and-replace-in-scripts', {
+    const response = await this._callSingle('/api/find-and-replace-in-scripts', {
       pattern,
       replacement,
       ...options
-    });
+    }, undefined, instance_id);
     return {
       content: [{
         type: 'text',
@@ -2014,31 +2199,42 @@ export class RobloxStudioTools {
     };
   }
 
-  async getMemoryBreakdown(target?: string, tags?: string[]) {
+  async getMemoryBreakdown(target?: string, tags?: string[], instance_id?: string) {
     const tgt = target ?? 'all';
     const data: Record<string, unknown> = {};
     if (tags !== undefined) data.tags = tags;
 
-    if (tgt !== 'all') {
-      const response = await this.client.request('/api/get-memory-breakdown', data, tgt);
+    const resolved = this.bridge.resolveTarget({ instance_id, target: tgt });
+    if (!resolved.ok) throw new RoutingFailure(resolved.error);
+
+    if (resolved.mode === 'single') {
+      const response = await this.client.request(
+        '/api/get-memory-breakdown',
+        data,
+        resolved.targetInstanceId,
+        resolved.targetRole,
+      );
       return { content: [{ type: 'text', text: JSON.stringify(response) }] };
     }
 
-    const targets = this.bridge.getInstances()
-      .filter((i) => i.role !== 'edit-proxy')
-      .map((i) => i.role);
+    const targets = resolved.targets.filter((t) => t.targetRole !== 'edit-proxy');
 
     const responses = await Promise.allSettled(
       targets.map(async (t) => ({
-        peer: t,
-        result: await this.client.request('/api/get-memory-breakdown', data, t),
+        peer: t.targetRole,
+        result: await this.client.request(
+          '/api/get-memory-breakdown',
+          data,
+          t.targetInstanceId,
+          t.targetRole,
+        ),
       })),
     );
 
     const body: Record<string, unknown> = {};
     for (let i = 0; i < responses.length; i++) {
       const r = responses[i];
-      const peer = targets[i];
+      const peer = targets[i].targetRole;
       if (r.status === 'fulfilled') {
         body[peer] = r.value.result;
       } else {
@@ -2049,7 +2245,7 @@ export class RobloxStudioTools {
     return { content: [{ type: 'text', text: JSON.stringify(body) }] };
   }
 
-  async exportRbxm(instancePaths: string[], outputPath: string, target?: string) {
+  async exportRbxm(instancePaths: string[], outputPath: string, target?: string, instance_id?: string) {
     if (!Array.isArray(instancePaths) || instancePaths.length === 0) {
       throw new Error('instance_paths must be a non-empty array for export_rbxm');
     }
@@ -2061,10 +2257,11 @@ export class RobloxStudioTools {
       throw new Error(`export_rbxm target must be "edit" or "server" (got: ${tgt})`);
     }
 
-    const response = await this.client.request(
+    const response = await this._callSingle(
       '/api/export-rbxm',
       { instance_paths: instancePaths },
       tgt,
+      instance_id,
     ) as { error?: string; base64?: string; instance_count?: number };
 
     if (response.error) {
@@ -2099,6 +2296,7 @@ export class RobloxStudioTools {
     source: { path?: string; url?: string; base64?: string } | undefined,
     parentPath: string,
     target?: string,
+    instance_id?: string
   ) {
     if (!source || typeof source !== 'object') {
       throw new Error('source is required for import_rbxm');
@@ -2174,7 +2372,7 @@ export class RobloxStudioTools {
       sourceLabel = `base64(${bytes.length}B)`;
     }
 
-    const response = await this.client.request(
+    const response = await this._callSingle(
       '/api/import-rbxm',
       {
         base64: bytes.toString('base64'),
@@ -2182,13 +2380,14 @@ export class RobloxStudioTools {
         source_label: sourceLabel,
       },
       tgt,
+      instance_id,
     );
 
     return { content: [{ type: 'text', text: JSON.stringify(response) }] };
   }
 
-  async captureScreenshot() {
-    const response = await this.client.request('/api/capture-screenshot', {}) as RawImageCaptureResponse;
+  async captureScreenshot(instance_id?: string) {
+    const response = await this._callSingle('/api/capture-screenshot', {}, undefined, instance_id) as RawImageCaptureResponse;
 
     if (response.error) {
       return {

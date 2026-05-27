@@ -33,14 +33,17 @@ export interface PollResponse {
 	request?: RequestPayload;
 	requestId?: string;
 	// Server signals knownInstance=false when its in-memory instances map
-	// doesn't contain our instanceId (typically after an MCP process restart).
-	// The plugin re-issues /ready when it sees this.
+	// doesn't contain our pluginSessionId (typically after an MCP process
+	// restart). The plugin re-issues /ready when it sees this.
 	knownInstance?: boolean;
 }
 
 export interface ReadyResponse {
 	success: boolean;
 	assignedRole?: string;
+	instanceId?: string;
+	error?: string;
+	message?: string;
 }
 
 declare global {

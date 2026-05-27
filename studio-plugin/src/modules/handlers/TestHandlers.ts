@@ -235,9 +235,27 @@ function stopPlaytest(_requestData: Record<string, unknown>) {
 		return { error: "Plugin not ready. Try again in a moment." };
 	}
 	if (!StopPlayMonitor.waitForConsumption()) {
-		// Clean up the pending flag so a future playtest's monitor doesn't fire
-		// EndTest on its own startup against a stale signal.
+		// Two distinct failure modes collapse here, distinguished by whether
+		// THIS edit DM has a playtest tracked:
+		//
+		// - testRunning=false: no playtest was running from this edit DM
+		//   (true negative). Return "no active playtest" — fine to retry only
+		//   after actually starting a playtest.
+		// - testRunning=true: a playtest IS running but the cross-DM signal
+		//   didn't propagate within the consumption timeout (false negative
+		//   from the caller's perspective — playtest may actually have ended).
+		//   Tell the caller it's a timing issue and they can retry.
+		//
+		// Either way clean up the pending flag so a future playtest's monitor
+		// doesn't fire EndTest on startup against a stale signal.
 		StopPlayMonitor.clearPending();
+		if (testRunning) {
+			return {
+				error:
+					"Playtest stop signal sent but consumption confirmation timed out. " +
+					"The playtest may have ended anyway; check get_connected_instances.",
+			};
+		}
 		return { error: "No active playtest to stop." };
 	}
 	// Flag was consumed (EndTest called). ExecutePlayModeAsync in our

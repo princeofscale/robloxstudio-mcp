@@ -7,9 +7,14 @@ export class StudioHttpClient {
     this.bridge = bridge;
   }
 
-  async request(endpoint: string, data: any, target = 'edit'): Promise<any> {
+  async request(
+    endpoint: string,
+    data: any,
+    targetInstanceId: string,
+    targetRole: string,
+  ): Promise<any> {
     try {
-      const response = await this.bridge.sendRequest(endpoint, data, target);
+      const response = await this.bridge.sendRequest(endpoint, data, targetInstanceId, targetRole);
       return response;
     } catch (error) {
       if (error instanceof Error && error.message === 'Request timeout') {

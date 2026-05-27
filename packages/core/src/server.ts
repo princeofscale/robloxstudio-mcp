@@ -9,7 +9,7 @@ import {
 import http from 'http';
 import { createHttpServer, listenWithRetry, TOOL_HANDLERS } from './http-server.js';
 import { RobloxStudioTools } from './tools/index.js';
-import { BridgeService } from './bridge-service.js';
+import { BridgeService, RoutingFailure } from './bridge-service.js';
 import { ProxyBridgeService } from './proxy-bridge-service.js';
 import type { ToolDefinition } from './tools/definitions.js';
 
@@ -73,6 +73,23 @@ export class RobloxStudioMCPServer {
       try {
         return await handler(this.tools, args ?? {});
       } catch (error) {
+        if (error instanceof RoutingFailure) {
+          // Surface routing errors as structured tool-call results with
+          // the full instance list embedded so the LLM can recover by
+          // picking an instance_id from data.instances — no need for a
+          // separate get_connected_instances round-trip.
+          return {
+            content: [{
+              type: 'text',
+              text: JSON.stringify({
+                error: error.routingError.code,
+                message: error.routingError.message,
+                data: error.routingError.data,
+              }),
+            }],
+            isError: true,
+          };
+        }
         if (error instanceof McpError) throw error;
         throw new McpError(
           ErrorCode.InternalError,

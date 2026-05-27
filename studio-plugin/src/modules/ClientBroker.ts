@@ -1,6 +1,43 @@
-import { HttpService, Players, ReplicatedStorage, RunService } from "@rbxts/services";
+import { HttpService, Players, ReplicatedStorage, RunService, ServerStorage } from "@rbxts/services";
 import RuntimeLogBuffer from "./RuntimeLogBuffer";
 import MemoryHandlers from "./handlers/MemoryHandlers";
+import LuauExec from "./LuauExec";
+
+// Mirror of Communication.computeInstanceId() — duplicated here because the
+// client broker runs in the play-server DM where it can't easily import from
+// the edit-side module, and the place identifier must match what the edit-DM
+// plugin reports. Both use the same algorithm against the shared DataModel.
+function computeInstanceId(): string {
+	if (game.PlaceId !== 0) {
+		return `place:${tostring(game.PlaceId)}`;
+	}
+	const existing = ServerStorage.GetAttribute("__MCPPlaceId");
+	if (typeIs(existing, "string") && existing !== "") {
+		return `anon:${existing as string}`;
+	}
+	const fresh = HttpService.GenerateGUID(false);
+	pcall(() => ServerStorage.SetAttribute("__MCPPlaceId", fresh));
+	return `anon:${fresh}`;
+}
+
+let cachedPlaceName: string | undefined;
+function resolvePlaceName(): string {
+	if (cachedPlaceName !== undefined) return cachedPlaceName;
+	if (game.PlaceId === 0) {
+		cachedPlaceName = game.Name;
+		return cachedPlaceName;
+	}
+	const MarketplaceService = game.GetService("MarketplaceService");
+	const [ok, info] = pcall(() => MarketplaceService.GetProductInfo(game.PlaceId));
+	if (ok && info !== undefined) {
+		const name = (info as { Name?: string }).Name;
+		if (typeIs(name, "string") && name !== "") {
+			cachedPlaceName = name;
+			return cachedPlaceName;
+		}
+	}
+	return game.Name;
+}
 
 // The client peer cannot reach the MCP HTTP server - Roblox forbids
 // HttpService:RequestAsync from the client DM even under PluginSecurity, and
@@ -18,7 +55,7 @@ const MCP_URL = "http://localhost:58741";
 const BROKER_NAME = "__MCPClientBroker";
 
 interface ProxyEntry {
-	instanceId: string;
+	pluginSessionId: string;
 	role: string;
 }
 
@@ -31,12 +68,6 @@ interface BrokerEnvelope {
 	code?: string;
 }
 
-interface ExecuteResult {
-	success: boolean;
-	returnValue?: string;
-	message?: string;
-	error?: string;
-}
 
 // Endpoints the server-peer broker is allowed to forward to the client peer.
 // Each requires the client peer's plugin VM (because the buffer / require
@@ -72,7 +103,17 @@ function reRegisterProxy(proxyId: string, role: string): void {
 	const last = lastReadyByProxy.get(proxyId) ?? 0;
 	if (now - last < 2) return;
 	lastReadyByProxy.set(proxyId, now);
-	pcall(() => postJson("/ready", { instanceId: proxyId, role }));
+	pcall(() =>
+		postJson("/ready", {
+			pluginSessionId: proxyId,
+			instanceId: computeInstanceId(),
+			role,
+			placeId: game.PlaceId,
+			placeName: resolvePlaceName(),
+			dataModelName: game.Name,
+			isRunning: RunService.IsRunning(),
+		}),
+	);
 }
 
 function forkRole(): "edit" | "server" | "client" {
@@ -92,31 +133,16 @@ function postJson(endpoint: string, body: Record<string, unknown>) {
 	);
 }
 
-function handleExecuteLuau(data: Record<string, unknown> | undefined): ExecuteResult {
+function handleExecuteLuau(data: Record<string, unknown> | undefined) {
 	const code = data && (data.code as string | undefined);
 	if (typeIs(code, "string") === false || code === "") {
 		return { success: false, error: "code is required" };
 	}
-	const m = new Instance("ModuleScript");
-	m.Name = "__MCPClientEval";
-	const [okSet, setErr] = pcall(() => {
-		(m as unknown as { Source: string }).Source = code as string;
-	});
-	if (!okSet) {
-		m.Destroy();
-		return { success: false, error: `Source set failed: ${tostring(setErr)}` };
-	}
-	m.Parent = game.Workspace;
-	const [okReq, result] = pcall(() => require(m));
-	m.Destroy();
-	if (okReq) {
-		return {
-			success: true,
-			returnValue: result !== undefined ? tostring(result) : undefined,
-			message: "Code executed successfully",
-		};
-	}
-	return { success: false, error: tostring(result) };
+	// Shared with edit/server (MetadataHandlers.executeLuau). Adds the IIFE
+	// wrapper (so `print("hi")` with no return doesn't fail the
+	// ModuleScript's "must return one value" rule) and JSON-encodes table
+	// returns instead of yielding "table: 0xaddr".
+	return LuauExec.execute(code as string);
 }
 
 function handleGetRuntimeLogs(data: Record<string, unknown> | undefined): unknown {
@@ -162,7 +188,7 @@ function pollProxy(proxyId: string, player: Player, rf: RemoteFunction) {
 	while (player.Parent !== undefined && proxyByPlayer.has(player)) {
 		const [ok, res] = pcall(() =>
 			HttpService.RequestAsync({
-				Url: `${MCP_URL}/poll?instanceId=${proxyId}`,
+				Url: `${MCP_URL}/poll?pluginSessionId=${proxyId}`,
 				Method: "GET",
 				Headers: { "Content-Type": "application/json" },
 			}),
@@ -206,14 +232,22 @@ function pollProxy(proxyId: string, player: Player, rf: RemoteFunction) {
 function registerProxy(player: Player, rf: RemoteFunction) {
 	if (proxyByPlayer.has(player)) return;
 	const proxyId = HttpService.GenerateGUID(false);
-	const [ok, res] = postJson("/ready", { instanceId: proxyId, role: "client" });
+	const [ok, res] = postJson("/ready", {
+		pluginSessionId: proxyId,
+		instanceId: computeInstanceId(),
+		role: "client",
+		placeId: game.PlaceId,
+		placeName: resolvePlaceName(),
+		dataModelName: game.Name,
+		isRunning: RunService.IsRunning(),
+	});
 	if (!ok || !res || !res.Success) {
 		warn(`[MCPFork] proxy register failed for ${player.Name}`);
 		return;
 	}
 	const body = HttpService.JSONDecode(res.Body) as ReadyResponseBody;
 	const assigned = body.assignedRole ?? "client";
-	proxyByPlayer.set(player, { instanceId: proxyId, role: assigned });
+	proxyByPlayer.set(player, { pluginSessionId: proxyId, role: assigned });
 	task.spawn(pollProxy, proxyId, player, rf);
 }
 
@@ -238,12 +272,12 @@ function setupServerBroker() {
 		const entry = proxyByPlayer.get(p);
 		if (entry) {
 			proxyByPlayer.delete(p);
-			postJson("/disconnect", { instanceId: entry.instanceId });
+			postJson("/disconnect", { pluginSessionId: entry.pluginSessionId });
 		}
 	});
 	game.BindToClose(() => {
 		for (const [, entry] of proxyByPlayer) {
-			postJson("/disconnect", { instanceId: entry.instanceId });
+			postJson("/disconnect", { pluginSessionId: entry.pluginSessionId });
 		}
 		proxyByPlayer.clear();
 	});

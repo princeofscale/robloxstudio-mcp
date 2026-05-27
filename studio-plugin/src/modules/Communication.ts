@@ -1,4 +1,4 @@
-import { HttpService, RunService } from "@rbxts/services";
+import { HttpService, RunService, ServerStorage } from "@rbxts/services";
 import State from "./State";
 import Utils from "./Utils";
 import UI from "./UI";
@@ -17,8 +17,60 @@ import SerializationHandlers from "./handlers/SerializationHandlers";
 import MemoryHandlers from "./handlers/MemoryHandlers";
 import { Connection, RequestPayload, PollResponse, ReadyResponse } from "../types";
 
-const instanceId = HttpService.GenerateGUID(false);
+// Per-plugin-load random GUID. Used as the /poll URL param so the server
+// can tell our polls apart from any other plugin's polls. Not user-facing —
+// MCP tools and the LLM operate on instanceId (the place identifier).
+const pluginSessionId = HttpService.GenerateGUID(false);
+
+// Place-level identifier shared by every plugin running in DataModels of
+// the same place file (edit DM + playtest server DM + playtest clients).
+// Format: "place:<PlaceId>" when published, "anon:<UUID>" for unpublished
+// places where the UUID lives on ServerStorage's __MCPPlaceId attribute
+// and travels with the .rbxl.
+const MCP_PLACE_ID_ATTRIBUTE = "__MCPPlaceId";
+
+function computeInstanceId(): string {
+	if (game.PlaceId !== 0) {
+		return `place:${tostring(game.PlaceId)}`;
+	}
+	const existing = ServerStorage.GetAttribute(MCP_PLACE_ID_ATTRIBUTE);
+	if (typeIs(existing, "string") && existing !== "") {
+		return `anon:${existing as string}`;
+	}
+	const fresh = HttpService.GenerateGUID(false);
+	pcall(() => ServerStorage.SetAttribute(MCP_PLACE_ID_ATTRIBUTE, fresh));
+	return `anon:${fresh}`;
+}
+
+const instanceId = computeInstanceId();
 let assignedRole: string | undefined;
+let duplicateInstanceRole = false;
+
+// Cache the published place name from MarketplaceService:GetProductInfo so
+// /ready can carry a friendly identifier (e.g. "Natural Disasters") distinct
+// from game.Name (the DataModel name, often "Place1" in edit). We only fetch
+// once per plugin load; the published name doesn't change mid-session.
+let cachedPlaceName: string | undefined;
+
+function resolvePlaceName(): string {
+	if (cachedPlaceName !== undefined) return cachedPlaceName;
+	if (game.PlaceId === 0) {
+		cachedPlaceName = game.Name;
+		return cachedPlaceName;
+	}
+	const MarketplaceService = game.GetService("MarketplaceService");
+	const [ok, info] = pcall(() => MarketplaceService.GetProductInfo(game.PlaceId));
+	if (ok && info !== undefined) {
+		const name = (info as { Name?: string }).Name;
+		if (typeIs(name, "string") && name !== "") {
+			cachedPlaceName = name;
+			return cachedPlaceName;
+		}
+	}
+	// Don't cache failures — could be transient (offline, rate-limited).
+	// Next /ready will retry. Return game.Name as fallback.
+	return game.Name;
+}
 
 function detectRole(): string {
 	if (!RunService.IsRunning()) return "edit";
@@ -140,7 +192,25 @@ function getConnectionStatus(connIndex: number): string {
 // restarted but hasn't seen our re-ready yet would fire a duplicate /ready.
 let lastReadyPostAt = 0;
 
+// game.Name is sometimes "Place1" at plugin-load time and only settles to
+// the real DataModel name (e.g. "Game" once playtest spawns the play DM)
+// after Studio finishes wiring things up. Re-fire /ready when it changes so
+// get_connected_instances doesn't show a stale dataModelName forever. Set
+// up once per plugin load — the connection passed in is whichever was
+// active when activatePlugin was first called.
+let nameChangeConn: RBXScriptConnection | undefined;
+function ensureNameChangeWatcher(conn: Connection): void {
+	if (nameChangeConn) return;
+	const [okSig, signal] = pcall(() => game.GetPropertyChangedSignal("Name"));
+	if (!okSig || !signal) return;
+	nameChangeConn = signal.Connect(() => {
+		// sendReady has its own 2s throttle, so rapid burst changes coalesce.
+		sendReady(conn);
+	});
+}
+
 function sendReady(conn: Connection): void {
+	if (duplicateInstanceRole) return; // stop retrying once the server has rejected us
 	const now = tick();
 	if (now - lastReadyPostAt < 2) return; // throttle to ≤1 /ready every 2s
 	lastReadyPostAt = now;
@@ -151,14 +221,36 @@ function sendReady(conn: Connection): void {
 				Method: "POST",
 				Headers: { "Content-Type": "application/json" },
 				Body: HttpService.JSONEncode({
+					pluginSessionId,
 					instanceId,
 					role: detectRole(),
+					placeId: game.PlaceId,
+					placeName: resolvePlaceName(),
+					dataModelName: game.Name,
+					isRunning: RunService.IsRunning(),
 					pluginReady: true,
 					timestamp: tick(),
 				}),
 			});
 		});
-		if (readyOk && readyResult.Success) {
+		if (!readyOk) return;
+		// 409 = duplicate_instance_role. Surface in UI and stop polling.
+		if (readyResult.StatusCode === 409) {
+			duplicateInstanceRole = true;
+			conn.isActive = false;
+			const ui = UI.getElements();
+			if (State.getActiveTabIndex() === 0) {
+				ui.statusLabel.Text = "Duplicate instance";
+				ui.statusLabel.TextColor3 = Color3.fromRGB(239, 68, 68);
+				ui.detailStatusLabel.Text = "Another Studio is already connected as this place + role";
+				ui.detailStatusLabel.TextColor3 = Color3.fromRGB(239, 68, 68);
+			}
+			warn(
+				`[MCPPlugin] Another Studio is already connected as (${instanceId}, ${detectRole()}). Close the other Studio window or this one.`,
+			);
+			return;
+		}
+		if (readyResult.Success) {
 			const [parseOk, readyData] = pcall(
 				() => HttpService.JSONDecode(readyResult.Body) as ReadyResponse,
 			);
@@ -178,7 +270,7 @@ function pollForRequests(connIndex: number) {
 
 	const [success, result] = pcall(() => {
 		return HttpService.RequestAsync({
-			Url: `${conn.serverUrl}/poll?instanceId=${instanceId}`,
+			Url: `${conn.serverUrl}/poll?pluginSessionId=${pluginSessionId}`,
 			Method: "GET",
 			Headers: { "Content-Type": "application/json" },
 		});
@@ -365,6 +457,10 @@ function activatePlugin(connIndex?: number) {
 	// Initial /ready; pollForRequests will also re-fire ready if the server
 	// later reports knownInstance=false (process restart, etc).
 	sendReady(conn);
+
+	// Watch for game.Name updates so a stale "Place1" captured at first
+	// /ready gets refreshed once Studio settles on the real DM name.
+	ensureNameChangeWatcher(conn);
 }
 
 function deactivatePlugin(connIndex?: number) {
@@ -383,7 +479,7 @@ function deactivatePlugin(connIndex?: number) {
 			Url: `${conn.serverUrl}/disconnect`,
 			Method: "POST",
 			Headers: { "Content-Type": "application/json" },
-			Body: HttpService.JSONEncode({ instanceId, timestamp: tick() }),
+			Body: HttpService.JSONEncode({ pluginSessionId, timestamp: tick() }),
 		});
 	});
 

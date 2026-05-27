@@ -19,6 +19,10 @@ export const TOOL_DEFINITIONS: ToolDefinition[] = [
         path: {
           type: 'string',
           description: 'Root path (default: game root)'
+        },
+        instance_id: {
+          type: 'string',
+          description: 'Which connected Studio place to target. Required when multiple places are connected; omit when one. Use get_connected_instances to list available IDs.'
         }
       }
     }
@@ -38,6 +42,10 @@ export const TOOL_DEFINITIONS: ToolDefinition[] = [
           type: 'string',
           enum: ['name', 'type', 'content'],
           description: 'Search mode (default: name)'
+        },
+        instance_id: {
+          type: 'string',
+          description: 'Which connected Studio place to target. Required when multiple places are connected; omit when one. Use get_connected_instances to list available IDs.'
         }
       },
       required: ['query']
@@ -51,7 +59,12 @@ export const TOOL_DEFINITIONS: ToolDefinition[] = [
     description: 'Get place ID, name, and game settings',
     inputSchema: {
       type: 'object',
-      properties: {}
+      properties: {
+        instance_id: {
+          type: 'string',
+          description: 'Which connected Studio place to target. Required when multiple places are connected; omit when one. Use get_connected_instances to list available IDs.'
+        }
+      }
     }
   },
   {
@@ -64,6 +77,10 @@ export const TOOL_DEFINITIONS: ToolDefinition[] = [
         serviceName: {
           type: 'string',
           description: 'Specific service name'
+        },
+        instance_id: {
+          type: 'string',
+          description: 'Which connected Studio place to target. Required when multiple places are connected; omit when one. Use get_connected_instances to list available IDs.'
         }
       }
     }
@@ -87,6 +104,10 @@ export const TOOL_DEFINITIONS: ToolDefinition[] = [
         propertyName: {
           type: 'string',
           description: 'Property name when searchType is "property"'
+        },
+        instance_id: {
+          type: 'string',
+          description: 'Which connected Studio place to target. Required when multiple places are connected; omit when one. Use get_connected_instances to list available IDs.'
         }
       },
       required: ['query']
@@ -108,6 +129,10 @@ export const TOOL_DEFINITIONS: ToolDefinition[] = [
         excludeSource: {
           type: 'boolean',
           description: 'For scripts, return SourceLength/LineCount instead of full source (default: false)'
+        },
+        instance_id: {
+          type: 'string',
+          description: 'Which connected Studio place to target. Required when multiple places are connected; omit when one. Use get_connected_instances to list available IDs.'
         }
       },
       required: ['instancePath']
@@ -123,6 +148,10 @@ export const TOOL_DEFINITIONS: ToolDefinition[] = [
         instancePath: {
           type: 'string',
           description: 'Instance path (dot notation)'
+        },
+        instance_id: {
+          type: 'string',
+          description: 'Which connected Studio place to target. Required when multiple places are connected; omit when one. Use get_connected_instances to list available IDs.'
         }
       },
       required: ['instancePath']
@@ -142,6 +171,10 @@ export const TOOL_DEFINITIONS: ToolDefinition[] = [
         propertyValue: {
           type: 'string',
           description: 'Value to match'
+        },
+        instance_id: {
+          type: 'string',
+          description: 'Which connected Studio place to target. Required when multiple places are connected; omit when one. Use get_connected_instances to list available IDs.'
         }
       },
       required: ['propertyName', 'propertyValue']
@@ -157,6 +190,10 @@ export const TOOL_DEFINITIONS: ToolDefinition[] = [
         className: {
           type: 'string',
           description: 'Roblox class name'
+        },
+        instance_id: {
+          type: 'string',
+          description: 'Which connected Studio place to target. Required when multiple places are connected; omit when one. Use get_connected_instances to list available IDs.'
         }
       },
       required: ['className']
@@ -182,6 +219,10 @@ export const TOOL_DEFINITIONS: ToolDefinition[] = [
         scriptsOnly: {
           type: 'boolean',
           description: 'Show only scripts (default: false)'
+        },
+        instance_id: {
+          type: 'string',
+          description: 'Which connected Studio place to target. Required when multiple places are connected; omit when one. Use get_connected_instances to list available IDs.'
         }
       }
     }
@@ -205,6 +246,10 @@ export const TOOL_DEFINITIONS: ToolDefinition[] = [
         },
         propertyValue: {
           description: 'Value to set (string, number, boolean, or object for Vector3/Color3/UDim2)'
+        },
+        instance_id: {
+          type: 'string',
+          description: 'Which connected Studio place to target. Required when multiple places are connected; omit when one. Use get_connected_instances to list available IDs.'
         }
       },
       required: ['instancePath', 'propertyName', 'propertyValue']
@@ -228,6 +273,10 @@ export const TOOL_DEFINITIONS: ToolDefinition[] = [
         },
         propertyValue: {
           description: 'Value to set (string, number, boolean, or object for Vector3/Color3/UDim2)'
+        },
+        instance_id: {
+          type: 'string',
+          description: 'Which connected Studio place to target. Required when multiple places are connected; omit when one. Use get_connected_instances to list available IDs.'
         }
       },
       required: ['paths', 'propertyName', 'propertyValue']
@@ -248,6 +297,10 @@ export const TOOL_DEFINITIONS: ToolDefinition[] = [
         propertyName: {
           type: 'string',
           description: 'Property name'
+        },
+        instance_id: {
+          type: 'string',
+          description: 'Which connected Studio place to target. Required when multiple places are connected; omit when one. Use get_connected_instances to list available IDs.'
         }
       },
       required: ['paths', 'propertyName']
@@ -267,6 +320,10 @@ export const TOOL_DEFINITIONS: ToolDefinition[] = [
         properties: {
           type: 'object',
           description: 'Map of property name to value'
+        },
+        instance_id: {
+          type: 'string',
+          description: 'Which connected Studio place to target. Required when multiple places are connected; omit when one. Use get_connected_instances to list available IDs.'
         }
       },
       required: ['instancePath', 'properties']
@@ -296,6 +353,10 @@ export const TOOL_DEFINITIONS: ToolDefinition[] = [
         properties: {
           type: 'object',
           description: 'Properties to set on creation'
+        },
+        instance_id: {
+          type: 'string',
+          description: 'Which connected Studio place to target. Required when multiple places are connected; omit when one. Use get_connected_instances to list available IDs.'
         }
       },
       required: ['className', 'parent']
@@ -333,6 +394,10 @@ export const TOOL_DEFINITIONS: ToolDefinition[] = [
             required: ['className', 'parent']
           },
           description: 'Objects to create'
+        },
+        instance_id: {
+          type: 'string',
+          description: 'Which connected Studio place to target. Required when multiple places are connected; omit when one. Use get_connected_instances to list available IDs.'
         }
       },
       required: ['objects']
@@ -348,6 +413,10 @@ export const TOOL_DEFINITIONS: ToolDefinition[] = [
         instancePath: {
           type: 'string',
           description: 'Instance path (dot notation)'
+        },
+        instance_id: {
+          type: 'string',
+          description: 'Which connected Studio place to target. Required when multiple places are connected; omit when one. Use get_connected_instances to list available IDs.'
         }
       },
       required: ['instancePath']
@@ -402,6 +471,10 @@ export const TOOL_DEFINITIONS: ToolDefinition[] = [
               description: 'Different parent per duplicate'
             }
           }
+        },
+        instance_id: {
+          type: 'string',
+          description: 'Which connected Studio place to target. Required when multiple places are connected; omit when one. Use get_connected_instances to list available IDs.'
         }
       },
       required: ['instancePath', 'count']
@@ -464,6 +537,10 @@ export const TOOL_DEFINITIONS: ToolDefinition[] = [
             required: ['instancePath', 'count']
           },
           description: 'Duplication operations'
+        },
+        instance_id: {
+          type: 'string',
+          description: 'Which connected Studio place to target. Required when multiple places are connected; omit when one. Use get_connected_instances to list available IDs.'
         }
       },
       required: ['duplications']
@@ -490,6 +567,10 @@ export const TOOL_DEFINITIONS: ToolDefinition[] = [
         endLine: {
           type: 'number',
           description: 'End line (inclusive)'
+        },
+        instance_id: {
+          type: 'string',
+          description: 'Which connected Studio place to target. Required when multiple places are connected; omit when one. Use get_connected_instances to list available IDs.'
         }
       },
       required: ['instancePath']
@@ -509,6 +590,10 @@ export const TOOL_DEFINITIONS: ToolDefinition[] = [
         source: {
           type: 'string',
           description: 'New source code'
+        },
+        instance_id: {
+          type: 'string',
+          description: 'Which connected Studio place to target. Required when multiple places are connected; omit when one. Use get_connected_instances to list available IDs.'
         }
       },
       required: ['instancePath', 'source']
@@ -536,6 +621,10 @@ export const TOOL_DEFINITIONS: ToolDefinition[] = [
         startLine: {
           type: 'number',
           description: 'Optional 1-indexed line where old_string begins. When provided, skips uniqueness check and requires old_string to match starting at that exact line.'
+        },
+        instance_id: {
+          type: 'string',
+          description: 'Which connected Studio place to target. Required when multiple places are connected; omit when one. Use get_connected_instances to list available IDs.'
         }
       },
       required: ['instancePath', 'old_string', 'new_string']
@@ -559,6 +648,10 @@ export const TOOL_DEFINITIONS: ToolDefinition[] = [
         newContent: {
           type: 'string',
           description: 'Content to insert'
+        },
+        instance_id: {
+          type: 'string',
+          description: 'Which connected Studio place to target. Required when multiple places are connected; omit when one. Use get_connected_instances to list available IDs.'
         }
       },
       required: ['instancePath', 'newContent']
@@ -582,6 +675,10 @@ export const TOOL_DEFINITIONS: ToolDefinition[] = [
         endLine: {
           type: 'number',
           description: 'End line (inclusive)'
+        },
+        instance_id: {
+          type: 'string',
+          description: 'Which connected Studio place to target. Required when multiple places are connected; omit when one. Use get_connected_instances to list available IDs.'
         }
       },
       required: ['instancePath', 'startLine', 'endLine']
@@ -610,6 +707,10 @@ export const TOOL_DEFINITIONS: ToolDefinition[] = [
         valueType: {
           type: 'string',
           description: 'Type hint if needed'
+        },
+        instance_id: {
+          type: 'string',
+          description: 'Which connected Studio place to target. Required when multiple places are connected; omit when one. Use get_connected_instances to list available IDs.'
         }
       },
       required: ['instancePath', 'attributeName', 'attributeValue']
@@ -625,6 +726,10 @@ export const TOOL_DEFINITIONS: ToolDefinition[] = [
         instancePath: {
           type: 'string',
           description: 'Instance path (dot notation)'
+        },
+        instance_id: {
+          type: 'string',
+          description: 'Which connected Studio place to target. Required when multiple places are connected; omit when one. Use get_connected_instances to list available IDs.'
         }
       },
       required: ['instancePath']
@@ -644,6 +749,10 @@ export const TOOL_DEFINITIONS: ToolDefinition[] = [
         attributeName: {
           type: 'string',
           description: 'Attribute name'
+        },
+        instance_id: {
+          type: 'string',
+          description: 'Which connected Studio place to target. Required when multiple places are connected; omit when one. Use get_connected_instances to list available IDs.'
         }
       },
       required: ['instancePath', 'attributeName']
@@ -661,6 +770,10 @@ export const TOOL_DEFINITIONS: ToolDefinition[] = [
         instancePath: {
           type: 'string',
           description: 'Instance path (dot notation)'
+        },
+        instance_id: {
+          type: 'string',
+          description: 'Which connected Studio place to target. Required when multiple places are connected; omit when one. Use get_connected_instances to list available IDs.'
         }
       },
       required: ['instancePath']
@@ -680,6 +793,10 @@ export const TOOL_DEFINITIONS: ToolDefinition[] = [
         tagName: {
           type: 'string',
           description: 'Tag name'
+        },
+        instance_id: {
+          type: 'string',
+          description: 'Which connected Studio place to target. Required when multiple places are connected; omit when one. Use get_connected_instances to list available IDs.'
         }
       },
       required: ['instancePath', 'tagName']
@@ -699,6 +816,10 @@ export const TOOL_DEFINITIONS: ToolDefinition[] = [
         tagName: {
           type: 'string',
           description: 'Tag name'
+        },
+        instance_id: {
+          type: 'string',
+          description: 'Which connected Studio place to target. Required when multiple places are connected; omit when one. Use get_connected_instances to list available IDs.'
         }
       },
       required: ['instancePath', 'tagName']
@@ -714,6 +835,10 @@ export const TOOL_DEFINITIONS: ToolDefinition[] = [
         tagName: {
           type: 'string',
           description: 'Tag name'
+        },
+        instance_id: {
+          type: 'string',
+          description: 'Which connected Studio place to target. Required when multiple places are connected; omit when one. Use get_connected_instances to list available IDs.'
         }
       },
       required: ['tagName']
@@ -727,7 +852,12 @@ export const TOOL_DEFINITIONS: ToolDefinition[] = [
     description: 'Get all currently selected objects',
     inputSchema: {
       type: 'object',
-      properties: {}
+      properties: {
+        instance_id: {
+          type: 'string',
+          description: 'Which connected Studio place to target. Required when multiple places are connected; omit when one. Use get_connected_instances to list available IDs.'
+        }
+      }
     }
   },
 
@@ -746,6 +876,10 @@ export const TOOL_DEFINITIONS: ToolDefinition[] = [
         target: {
           type: 'string',
           description: 'Instance target: "edit" (default), "server", "client-1", "client-2", etc.'
+        },
+        instance_id: {
+          type: 'string',
+          description: 'Which connected Studio place to target. Required when multiple places are connected; omit when one. Use get_connected_instances to list available IDs.'
         }
       },
       required: ['code']
@@ -761,6 +895,10 @@ export const TOOL_DEFINITIONS: ToolDefinition[] = [
         code: {
           type: 'string',
           description: 'Luau code to execute. Use return ... to get a value back.'
+        },
+        instance_id: {
+          type: 'string',
+          description: 'Which connected Studio place to target. Required when multiple places are connected; omit when one. Use get_connected_instances to list available IDs.'
         }
       },
       required: ['code']
@@ -780,6 +918,10 @@ export const TOOL_DEFINITIONS: ToolDefinition[] = [
         target: {
           type: 'string',
           description: 'Client target: "client-1" (default), "client-2", etc.'
+        },
+        instance_id: {
+          type: 'string',
+          description: 'Which connected Studio place to target. Required when multiple places are connected; omit when one. Use get_connected_instances to list available IDs.'
         }
       },
       required: ['code']
@@ -830,6 +972,10 @@ export const TOOL_DEFINITIONS: ToolDefinition[] = [
           type: 'string',
           enum: ['Script', 'LocalScript', 'ModuleScript'],
           description: 'Only search scripts of this class type'
+        },
+        instance_id: {
+          type: 'string',
+          description: 'Which connected Studio place to target. Required when multiple places are connected; omit when one. Use get_connected_instances to list available IDs.'
         }
       },
       required: ['pattern']
@@ -852,6 +998,10 @@ export const TOOL_DEFINITIONS: ToolDefinition[] = [
         numPlayers: {
           type: 'number',
           description: 'Number of client players (1-8). Triggers server + clients mode via TestService.'
+        },
+        instance_id: {
+          type: 'string',
+          description: 'Which connected Studio place to target. Required when multiple places are connected; omit when one. Use get_connected_instances to list available IDs.'
         }
       },
       required: ['mode']
@@ -863,7 +1013,12 @@ export const TOOL_DEFINITIONS: ToolDefinition[] = [
     description: 'Stop playtest and return all captured output.',
     inputSchema: {
       type: 'object',
-      properties: {}
+      properties: {
+        instance_id: {
+          type: 'string',
+          description: 'Which connected Studio place to target. Required when multiple places are connected; omit when one. Use get_connected_instances to list available IDs.'
+        }
+      }
     }
   },
   {
@@ -876,6 +1031,10 @@ export const TOOL_DEFINITIONS: ToolDefinition[] = [
         target: {
           type: 'string',
           description: 'Instance target: "edit" (default), "server", "client-1", "client-2", etc.'
+        },
+        instance_id: {
+          type: 'string',
+          description: 'Which connected Studio place to target. Required when multiple places are connected; omit when one. Use get_connected_instances to list available IDs.'
         }
       }
     }
@@ -902,6 +1061,10 @@ export const TOOL_DEFINITIONS: ToolDefinition[] = [
         filter: {
           type: 'string',
           description: 'Plain substring matched against each entry\'s message (no pattern semantics; literal text). Applied after since, before tail.'
+        },
+        instance_id: {
+          type: 'string',
+          description: 'Which connected Studio place to target. Required when multiple places are connected; omit when one. Use get_connected_instances to list available IDs.'
         }
       }
     }
@@ -925,7 +1088,12 @@ export const TOOL_DEFINITIONS: ToolDefinition[] = [
     description: 'Undo the last change in Roblox Studio. Uses ChangeHistoryService to reverse the most recent operation.',
     inputSchema: {
       type: 'object',
-      properties: {}
+      properties: {
+        instance_id: {
+          type: 'string',
+          description: 'Which connected Studio place to target. Required when multiple places are connected; omit when one. Use get_connected_instances to list available IDs.'
+        }
+      }
     }
   },
   {
@@ -934,7 +1102,12 @@ export const TOOL_DEFINITIONS: ToolDefinition[] = [
     description: 'Redo the last undone change in Roblox Studio. Uses ChangeHistoryService to reapply the most recently undone operation.',
     inputSchema: {
       type: 'object',
-      properties: {}
+      properties: {
+        instance_id: {
+          type: 'string',
+          description: 'Which connected Studio place to target. Required when multiple places are connected; omit when one. Use get_connected_instances to list available IDs.'
+        }
+      }
     }
   },
 
@@ -958,6 +1131,10 @@ export const TOOL_DEFINITIONS: ToolDefinition[] = [
           type: 'string',
           enum: ['medieval', 'modern', 'nature', 'scifi', 'misc'],
           description: 'Style category for the build (default: misc)'
+        },
+        instance_id: {
+          type: 'string',
+          description: 'Which connected Studio place to target. Required when multiple places are connected; omit when one. Use get_connected_instances to list available IDs.'
         }
       },
       required: ['instancePath']
@@ -1107,6 +1284,10 @@ part(0,2,0,2,1,1,"b")`,
           type: 'array',
           items: { type: 'number' },
           description: 'World position offset [X, Y, Z]'
+        },
+        instance_id: {
+          type: 'string',
+          description: 'Which connected Studio place to target. Required when multiple places are connected; omit when one. Use get_connected_instances to list available IDs.'
         }
       },
       required: ['buildData', 'targetPath']
@@ -1141,6 +1322,10 @@ part(0,2,0,2,1,1,"b")`,
         maxResults: {
           type: 'number',
           description: 'Max results to return (default: 50)'
+        },
+        instance_id: {
+          type: 'string',
+          description: 'Which connected Studio place to target. Required when multiple places are connected; omit when one. Use get_connected_instances to list available IDs.'
         }
       }
     }
@@ -1225,6 +1410,10 @@ part(0,2,0,2,1,1,"b")`,
         targetPath: {
           type: 'string',
           description: 'Parent instance path for the scene (default: game.Workspace)'
+        },
+        instance_id: {
+          type: 'string',
+          description: 'Which connected Studio place to target. Required when multiple places are connected; omit when one. Use get_connected_instances to list available IDs.'
         }
       },
       required: ['sceneData']
@@ -1323,6 +1512,10 @@ part(0,2,0,2,1,1,"b")`,
             z: { type: 'number' }
           },
           description: 'Optional world position to place the asset'
+        },
+        instance_id: {
+          type: 'string',
+          description: 'Which connected Studio place to target. Required when multiple places are connected; omit when one. Use get_connected_instances to list available IDs.'
         }
       },
       required: ['assetId']
@@ -1346,6 +1539,10 @@ part(0,2,0,2,1,1,"b")`,
         maxDepth: {
           type: 'number',
           description: 'Max hierarchy traversal depth (default: 10)'
+        },
+        instance_id: {
+          type: 'string',
+          description: 'Which connected Studio place to target. Required when multiple places are connected; omit when one. Use get_connected_instances to list available IDs.'
         }
       },
       required: ['assetId']
@@ -1393,7 +1590,12 @@ part(0,2,0,2,1,1,"b")`,
     description: 'Capture a screenshot of the Roblox Studio viewport and return it as a PNG image. Requires EditableImage API to be enabled: Game Settings > Security > "Allow Mesh / Image APIs". Only works in Edit mode with the viewport visible.',
     inputSchema: {
       type: 'object',
-      properties: {},
+      properties: {
+        instance_id: {
+          type: 'string',
+          description: 'Which connected Studio place to target. Required when multiple places are connected; omit when one. Use get_connected_instances to list available IDs.'
+        }
+      },
     }
   },
 
@@ -1431,6 +1633,10 @@ part(0,2,0,2,1,1,"b")`,
         target: {
           type: 'string',
           description: 'Instance target: "edit" (default), "server", "client-1", "client-2", etc.'
+        },
+        instance_id: {
+          type: 'string',
+          description: 'Which connected Studio place to target. Required when multiple places are connected; omit when one. Use get_connected_instances to list available IDs.'
         }
       },
       required: ['action', 'x', 'y']
@@ -1459,6 +1665,10 @@ part(0,2,0,2,1,1,"b")`,
         target: {
           type: 'string',
           description: 'Instance target: "edit" (default), "server", "client-1", "client-2", etc.'
+        },
+        instance_id: {
+          type: 'string',
+          description: 'Which connected Studio place to target. Required when multiple places are connected; omit when one. Use get_connected_instances to list available IDs.'
         }
       },
       required: ['keyCode']
@@ -1493,6 +1703,10 @@ part(0,2,0,2,1,1,"b")`,
         target: {
           type: 'string',
           description: 'Instance target: "edit" (default), "server", "client-1", "client-2", etc.'
+        },
+        instance_id: {
+          type: 'string',
+          description: 'Which connected Studio place to target. Required when multiple places are connected; omit when one. Use get_connected_instances to list available IDs.'
         }
       }
     }
@@ -1513,6 +1727,10 @@ part(0,2,0,2,1,1,"b")`,
         targetParentPath: {
           type: 'string',
           description: 'Path of the parent to place the clone under'
+        },
+        instance_id: {
+          type: 'string',
+          description: 'Which connected Studio place to target. Required when multiple places are connected; omit when one. Use get_connected_instances to list available IDs.'
         }
       },
       required: ['instancePath', 'targetParentPath']
@@ -1537,6 +1755,10 @@ part(0,2,0,2,1,1,"b")`,
         classFilter: {
           type: 'string',
           description: 'Only include instances of this class (uses IsA, so "BasePart" matches Part, MeshPart, etc.)'
+        },
+        instance_id: {
+          type: 'string',
+          description: 'Which connected Studio place to target. Required when multiple places are connected; omit when one. Use get_connected_instances to list available IDs.'
         }
       },
       required: ['instancePath']
@@ -1556,6 +1778,10 @@ part(0,2,0,2,1,1,"b")`,
         instancePathB: {
           type: 'string',
           description: 'Second instance path'
+        },
+        instance_id: {
+          type: 'string',
+          description: 'Which connected Studio place to target. Required when multiple places are connected; omit when one. Use get_connected_instances to list available IDs.'
         }
       },
       required: ['instancePathA', 'instancePathB']
@@ -1577,6 +1803,10 @@ part(0,2,0,2,1,1,"b")`,
         messageType: {
           type: 'string',
           description: 'Filter by message type (e.g. "Enum.MessageType.MessageOutput", "Enum.MessageType.MessageWarning", "Enum.MessageType.MessageError")'
+        },
+        instance_id: {
+          type: 'string',
+          description: 'Which connected Studio place to target. Required when multiple places are connected; omit when one. Use get_connected_instances to list available IDs.'
         }
       }
     }
@@ -1596,6 +1826,10 @@ part(0,2,0,2,1,1,"b")`,
         attributes: {
           type: 'object',
           description: 'Map of attribute names to values. Supports Vector3, Color3, UDim2 via _type convention.'
+        },
+        instance_id: {
+          type: 'string',
+          description: 'Which connected Studio place to target. Required when multiple places are connected; omit when one. Use get_connected_instances to list available IDs.'
         }
       },
       required: ['instancePath', 'attributes']
@@ -1618,6 +1852,10 @@ part(0,2,0,2,1,1,"b")`,
           type: 'array',
           items: { type: 'string' },
           description: 'Optional DeveloperMemoryTag whitelist. Unknown tag names return 0 + unknown_tags list.'
+        },
+        instance_id: {
+          type: 'string',
+          description: 'Which connected Studio place to target. Required when multiple places are connected; omit when one. Use get_connected_instances to list available IDs.'
         }
       }
     }
@@ -1644,6 +1882,10 @@ part(0,2,0,2,1,1,"b")`,
           type: 'string',
           enum: ['edit', 'server'],
           description: 'Which DataModel to read from (default: "edit"). "server" serializes live runtime state during a playtest.'
+        },
+        instance_id: {
+          type: 'string',
+          description: 'Which connected Studio place to target. Required when multiple places are connected; omit when one. Use get_connected_instances to list available IDs.'
         }
       },
       required: ['instance_paths', 'output_path']
@@ -1678,6 +1920,10 @@ part(0,2,0,2,1,1,"b")`,
           type: 'string',
           enum: ['edit', 'server'],
           description: 'Which DataModel to import into (default: "edit"). "server" parents into the live play-server DM.'
+        },
+        instance_id: {
+          type: 'string',
+          description: 'Which connected Studio place to target. Required when multiple places are connected; omit when one. Use get_connected_instances to list available IDs.'
         }
       },
       required: ['source', 'parent_path']
@@ -1724,6 +1970,10 @@ part(0,2,0,2,1,1,"b")`,
         maxReplacements: {
           type: 'number',
           description: 'Safety limit on total replacements (default: 1000)'
+        },
+        instance_id: {
+          type: 'string',
+          description: 'Which connected Studio place to target. Required when multiple places are connected; omit when one. Use get_connected_instances to list available IDs.'
         }
       },
       required: ['pattern', 'replacement']

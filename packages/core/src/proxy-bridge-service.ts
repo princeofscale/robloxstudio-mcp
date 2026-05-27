@@ -13,11 +13,10 @@ export class ProxyBridgeService extends BridgeService {
     super();
     this.primaryBaseUrl = primaryBaseUrl;
     this.proxyInstanceId = uuidv4();
-    // Mirror the primary's peer list locally so getInstances() returns real
-    // data. Without this, anything that enumerates peers from a proxy-mode
-    // subprocess (target=all fanout in get_runtime_logs, get_memory_breakdown,
-    // get_connected_instances) sees the proxy's own empty instances Map and
-    // returns nothing — exactly the symptom of the v2.11.x multi-session bug.
+    // Mirror the primary's peer list locally so getInstances() / resolveTarget
+    // see real data. Without this, anything that enumerates peers from a
+    // proxy-mode subprocess (target=all fanout, get_connected_instances)
+    // sees the proxy's own empty instances Map and returns nothing.
     this.refreshInstances();
     this.refreshTimer = setInterval(
       () => this.refreshInstances(),
@@ -52,7 +51,12 @@ export class ProxyBridgeService extends BridgeService {
     }
   }
 
-  override async sendRequest(endpoint: string, data: any, target = 'edit'): Promise<any> {
+  override async sendRequest(
+    endpoint: string,
+    data: any,
+    targetInstanceId: string,
+    targetRole: string,
+  ): Promise<any> {
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), this.proxyRequestTimeout);
 
@@ -60,7 +64,13 @@ export class ProxyBridgeService extends BridgeService {
       const response = await fetch(`${this.primaryBaseUrl}/proxy`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ endpoint, data, target, proxyInstanceId: this.proxyInstanceId }),
+        body: JSON.stringify({
+          endpoint,
+          data,
+          targetInstanceId,
+          targetRole,
+          proxyInstanceId: this.proxyInstanceId,
+        }),
         signal: controller.signal,
       });
 

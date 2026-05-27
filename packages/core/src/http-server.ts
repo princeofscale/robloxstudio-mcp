@@ -10,7 +10,7 @@ import {
   McpError,
 } from '@modelcontextprotocol/sdk/types.js';
 import { RobloxStudioTools } from './tools/index.js';
-import { BridgeService } from './bridge-service.js';
+import { BridgeService, RoutingFailure, toPublic } from './bridge-service.js';
 import type { ToolDefinition } from './tools/definitions.js';
 
 interface StreamableHttpConfig {
@@ -22,25 +22,25 @@ interface StreamableHttpConfig {
 export type ToolHandler = (tools: RobloxStudioTools, body: any) => Promise<any>;
 
 export const TOOL_HANDLERS: Record<string, ToolHandler> = {
-  get_file_tree: (tools, body) => tools.getFileTree(body.path),
-  search_files: (tools, body) => tools.searchFiles(body.query, body.searchType),
-  get_place_info: (tools) => tools.getPlaceInfo(),
-  get_services: (tools, body) => tools.getServices(body.serviceName),
-  search_objects: (tools, body) => tools.searchObjects(body.query, body.searchType, body.propertyName),
-  get_instance_properties: (tools, body) => tools.getInstanceProperties(body.instancePath, body.excludeSource),
-  get_instance_children: (tools, body) => tools.getInstanceChildren(body.instancePath),
-  search_by_property: (tools, body) => tools.searchByProperty(body.propertyName, body.propertyValue),
-  get_class_info: (tools, body) => tools.getClassInfo(body.className),
-  get_project_structure: (tools, body) => tools.getProjectStructure(body.path, body.maxDepth, body.scriptsOnly),
-  set_property: (tools, body) => tools.setProperty(body.instancePath, body.propertyName, body.propertyValue),
-  set_properties: (tools, body) => tools.setProperties(body.instancePath, body.properties),
-  mass_set_property: (tools, body) => tools.massSetProperty(body.paths, body.propertyName, body.propertyValue),
-  mass_get_property: (tools, body) => tools.massGetProperty(body.paths, body.propertyName),
-  create_object: (tools, body) => tools.createObject(body.className, body.parent, body.name, body.properties),
-  mass_create_objects: (tools, body) => tools.massCreateObjects(body.objects),
-  delete_object: (tools, body) => tools.deleteObject(body.instancePath),
-  smart_duplicate: (tools, body) => tools.smartDuplicate(body.instancePath, body.count, body.options),
-  mass_duplicate: (tools, body) => tools.massDuplicate(body.duplications),
+  get_file_tree: (tools, body) => tools.getFileTree(body.path, body.instance_id),
+  search_files: (tools, body) => tools.searchFiles(body.query, body.searchType, body.instance_id),
+  get_place_info: (tools, body) => tools.getPlaceInfo(body.instance_id),
+  get_services: (tools, body) => tools.getServices(body.serviceName, body.instance_id),
+  search_objects: (tools, body) => tools.searchObjects(body.query, body.searchType, body.propertyName, body.instance_id),
+  get_instance_properties: (tools, body) => tools.getInstanceProperties(body.instancePath, body.excludeSource, body.instance_id),
+  get_instance_children: (tools, body) => tools.getInstanceChildren(body.instancePath, body.instance_id),
+  search_by_property: (tools, body) => tools.searchByProperty(body.propertyName, body.propertyValue, body.instance_id),
+  get_class_info: (tools, body) => tools.getClassInfo(body.className, body.instance_id),
+  get_project_structure: (tools, body) => tools.getProjectStructure(body.path, body.maxDepth, body.scriptsOnly, body.instance_id),
+  set_property: (tools, body) => tools.setProperty(body.instancePath, body.propertyName, body.propertyValue, body.instance_id),
+  set_properties: (tools, body) => tools.setProperties(body.instancePath, body.properties, body.instance_id),
+  mass_set_property: (tools, body) => tools.massSetProperty(body.paths, body.propertyName, body.propertyValue, body.instance_id),
+  mass_get_property: (tools, body) => tools.massGetProperty(body.paths, body.propertyName, body.instance_id),
+  create_object: (tools, body) => tools.createObject(body.className, body.parent, body.name, body.properties, body.instance_id),
+  mass_create_objects: (tools, body) => tools.massCreateObjects(body.objects, body.instance_id),
+  delete_object: (tools, body) => tools.deleteObject(body.instancePath, body.instance_id),
+  smart_duplicate: (tools, body) => tools.smartDuplicate(body.instancePath, body.count, body.options, body.instance_id),
+  mass_duplicate: (tools, body) => tools.massDuplicate(body.duplications, body.instance_id),
   grep_scripts: (tools, body) => tools.grepScripts(body.pattern, {
     caseSensitive: body.caseSensitive,
     usePattern: body.usePattern,
@@ -50,56 +50,56 @@ export const TOOL_HANDLERS: Record<string, ToolHandler> = {
     filesOnly: body.filesOnly,
     path: body.path,
     classFilter: body.classFilter,
-  }),
-  get_script_source: (tools, body) => tools.getScriptSource(body.instancePath, body.startLine, body.endLine),
-  set_script_source: (tools, body) => tools.setScriptSource(body.instancePath, body.source),
-  edit_script_lines: (tools, body) => tools.editScriptLines(body.instancePath, body.old_string, body.new_string, body.startLine),
-  insert_script_lines: (tools, body) => tools.insertScriptLines(body.instancePath, body.afterLine, body.newContent),
-  delete_script_lines: (tools, body) => tools.deleteScriptLines(body.instancePath, body.startLine, body.endLine),
-  set_attribute: (tools, body) => tools.setAttribute(body.instancePath, body.attributeName, body.attributeValue, body.valueType),
-  get_attributes: (tools, body) => tools.getAttributes(body.instancePath),
-  delete_attribute: (tools, body) => tools.deleteAttribute(body.instancePath, body.attributeName),
-  get_tags: (tools, body) => tools.getTags(body.instancePath),
-  add_tag: (tools, body) => tools.addTag(body.instancePath, body.tagName),
-  remove_tag: (tools, body) => tools.removeTag(body.instancePath, body.tagName),
-  get_tagged: (tools, body) => tools.getTagged(body.tagName),
-  get_selection: (tools) => tools.getSelection(),
-  execute_luau: (tools, body) => tools.executeLuau(body.code, body.target),
-  eval_server_runtime: (tools, body) => tools.evalServerRuntime(body.code),
-  eval_client_runtime: (tools, body) => tools.evalClientRuntime(body.code, body.target),
-  start_playtest: (tools, body) => tools.startPlaytest(body.mode, body.numPlayers),
-  stop_playtest: (tools) => tools.stopPlaytest(),
-  get_playtest_output: (tools, body) => tools.getPlaytestOutput(body.target),
-  get_runtime_logs: (tools, body) => tools.getRuntimeLogs(body.target, body.since, body.tail, body.filter),
+  }, body.instance_id),
+  get_script_source: (tools, body) => tools.getScriptSource(body.instancePath, body.startLine, body.endLine, body.instance_id),
+  set_script_source: (tools, body) => tools.setScriptSource(body.instancePath, body.source, body.instance_id),
+  edit_script_lines: (tools, body) => tools.editScriptLines(body.instancePath, body.old_string, body.new_string, body.startLine, body.instance_id),
+  insert_script_lines: (tools, body) => tools.insertScriptLines(body.instancePath, body.afterLine, body.newContent, body.instance_id),
+  delete_script_lines: (tools, body) => tools.deleteScriptLines(body.instancePath, body.startLine, body.endLine, body.instance_id),
+  set_attribute: (tools, body) => tools.setAttribute(body.instancePath, body.attributeName, body.attributeValue, body.valueType, body.instance_id),
+  get_attributes: (tools, body) => tools.getAttributes(body.instancePath, body.instance_id),
+  delete_attribute: (tools, body) => tools.deleteAttribute(body.instancePath, body.attributeName, body.instance_id),
+  get_tags: (tools, body) => tools.getTags(body.instancePath, body.instance_id),
+  add_tag: (tools, body) => tools.addTag(body.instancePath, body.tagName, body.instance_id),
+  remove_tag: (tools, body) => tools.removeTag(body.instancePath, body.tagName, body.instance_id),
+  get_tagged: (tools, body) => tools.getTagged(body.tagName, body.instance_id),
+  get_selection: (tools, body) => tools.getSelection(body.instance_id),
+  execute_luau: (tools, body) => tools.executeLuau(body.code, body.target, body.instance_id),
+  eval_server_runtime: (tools, body) => tools.evalServerRuntime(body.code, body.instance_id),
+  eval_client_runtime: (tools, body) => tools.evalClientRuntime(body.code, body.target, body.instance_id),
+  start_playtest: (tools, body) => tools.startPlaytest(body.mode, body.numPlayers, body.instance_id),
+  stop_playtest: (tools, body) => tools.stopPlaytest(body.instance_id),
+  get_playtest_output: (tools, body) => tools.getPlaytestOutput(body.target, body.instance_id),
+  get_runtime_logs: (tools, body) => tools.getRuntimeLogs(body.target, body.since, body.tail, body.filter, body.instance_id),
   get_connected_instances: (tools) => tools.getConnectedInstances(),
-  export_build: (tools, body) => tools.exportBuild(body.instancePath, body.outputId, body.style),
+  export_build: (tools, body) => tools.exportBuild(body.instancePath, body.outputId, body.style, body.instance_id),
   create_build: (tools, body) => tools.createBuild(body.id, body.style, body.palette, body.parts, body.bounds),
   generate_build: (tools, body) => tools.generateBuild(body.id, body.style, body.palette, body.code, body.seed),
-  import_build: (tools, body) => tools.importBuild(body.buildData, body.targetPath, body.position),
+  import_build: (tools, body) => tools.importBuild(body.buildData, body.targetPath, body.position, body.instance_id),
   list_library: (tools, body) => tools.listLibrary(body.style),
-  search_materials: (tools, body) => tools.searchMaterials(body.query, body.maxResults),
+  search_materials: (tools, body) => tools.searchMaterials(body.query, body.maxResults, body.instance_id),
   get_build: (tools, body) => tools.getBuild(body.id),
-  import_scene: (tools, body) => tools.importScene(body.sceneData, body.targetPath),
-  undo: (tools) => tools.undo(),
-  redo: (tools) => tools.redo(),
+  import_scene: (tools, body) => tools.importScene(body.sceneData, body.targetPath, body.instance_id),
+  undo: (tools, body) => tools.undo(body.instance_id),
+  redo: (tools, body) => tools.redo(body.instance_id),
   search_assets: (tools, body) => tools.searchAssets(body.assetType, body.query, body.maxResults, body.sortBy, body.verifiedCreatorsOnly),
   get_asset_details: (tools, body) => tools.getAssetDetails(body.assetId),
   get_asset_thumbnail: (tools, body) => tools.getAssetThumbnail(body.assetId, body.size),
-  insert_asset: (tools, body) => tools.insertAsset(body.assetId, body.parentPath, body.position),
-  preview_asset: (tools, body) => tools.previewAsset(body.assetId, body.includeProperties, body.maxDepth),
+  insert_asset: (tools, body) => tools.insertAsset(body.assetId, body.parentPath, body.position, body.instance_id),
+  preview_asset: (tools, body) => tools.previewAsset(body.assetId, body.includeProperties, body.maxDepth, body.instance_id),
   upload_asset: (tools, body) => tools.uploadAsset(body.filePath, body.assetType, body.displayName, body.description, body.userId, body.groupId),
-  clone_object: (tools, body) => tools.cloneObject(body.instancePath, body.targetParentPath),
-  get_descendants: (tools, body) => tools.getDescendants(body.instancePath, body.maxDepth, body.classFilter),
-  compare_instances: (tools, body) => tools.compareInstances(body.instancePathA, body.instancePathB),
-  get_output_log: (tools, body) => tools.getOutputLog(body.maxEntries, body.messageType),
-  bulk_set_attributes: (tools, body) => tools.bulkSetAttributes(body.instancePath, body.attributes),
-  capture_screenshot: (tools) => tools.captureScreenshot(),
-  simulate_mouse_input: (tools, body) => tools.simulateMouseInput(body.action, body.x, body.y, body.button, body.scrollDirection, body.target),
-  simulate_keyboard_input: (tools, body) => tools.simulateKeyboardInput(body.keyCode, body.action, body.duration, body.target),
-  character_navigation: (tools, body) => tools.characterNavigation(body.position, body.instancePath, body.waitForCompletion, body.timeout, body.target),
-  get_memory_breakdown: (tools, body) => tools.getMemoryBreakdown(body.target, body.tags),
-  export_rbxm: (tools, body) => tools.exportRbxm(body.instance_paths, body.output_path, body.target),
-  import_rbxm: (tools, body) => tools.importRbxm(body.source, body.parent_path, body.target),
+  clone_object: (tools, body) => tools.cloneObject(body.instancePath, body.targetParentPath, body.instance_id),
+  get_descendants: (tools, body) => tools.getDescendants(body.instancePath, body.maxDepth, body.classFilter, body.instance_id),
+  compare_instances: (tools, body) => tools.compareInstances(body.instancePathA, body.instancePathB, body.instance_id),
+  get_output_log: (tools, body) => tools.getOutputLog(body.maxEntries, body.messageType, body.instance_id),
+  bulk_set_attributes: (tools, body) => tools.bulkSetAttributes(body.instancePath, body.attributes, body.instance_id),
+  capture_screenshot: (tools, body) => tools.captureScreenshot(body.instance_id),
+  simulate_mouse_input: (tools, body) => tools.simulateMouseInput(body.action, body.x, body.y, body.button, body.scrollDirection, body.target, body.instance_id),
+  simulate_keyboard_input: (tools, body) => tools.simulateKeyboardInput(body.keyCode, body.action, body.duration, body.target, body.instance_id),
+  character_navigation: (tools, body) => tools.characterNavigation(body.position, body.instancePath, body.waitForCompletion, body.timeout, body.target, body.instance_id),
+  get_memory_breakdown: (tools, body) => tools.getMemoryBreakdown(body.target, body.tags, body.instance_id),
+  export_rbxm: (tools, body) => tools.exportRbxm(body.instance_paths, body.output_path, body.target, body.instance_id),
+  import_rbxm: (tools, body) => tools.importRbxm(body.source, body.parent_path, body.target, body.instance_id),
   find_and_replace_in_scripts: (tools, body) => tools.findAndReplaceInScripts(body.pattern, body.replacement, {
     caseSensitive: body.caseSensitive,
     usePattern: body.usePattern,
@@ -107,7 +107,7 @@ export const TOOL_HANDLERS: Record<string, ToolHandler> = {
     classFilter: body.classFilter,
     dryRun: body.dryRun,
     maxReplacements: body.maxReplacements,
-  }),
+  }, body.instance_id),
 };
 
 export function createHttpServer(tools: RobloxStudioTools, bridge: BridgeService, allowedTools?: Set<string>, serverConfig?: StreamableHttpConfig) {
@@ -156,12 +156,7 @@ export function createHttpServer(tools: RobloxStudioTools, bridge: BridgeService
       version: serverConfig?.version,
       pluginConnected: instances.length > 0,
       instanceCount: instances.length,
-      instances: instances.map(i => ({
-        instanceId: i.instanceId,
-        role: i.role,
-        lastActivity: i.lastActivity,
-        connectedAt: i.connectedAt,
-      })),
+      instances: instances.map(toPublic),
       mcpServerActive: isMCPServerActive(),
       uptime: mcpServerActive ? Date.now() - mcpServerStartTime : 0,
       pendingRequests: bridge.getPendingRequestCount(),
@@ -172,26 +167,49 @@ export function createHttpServer(tools: RobloxStudioTools, bridge: BridgeService
 
 
   app.post('/ready', (req, res) => {
-    const { instanceId, role } = req.body;
+    const { pluginSessionId, instanceId, role, placeId, placeName, dataModelName, isRunning } = req.body;
 
-    if (instanceId && role) {
-      const assignedRole = bridge.registerInstance(instanceId, role);
-      res.json({ success: true, assignedRole });
-    } else {
-      bridge.registerInstance('legacy', 'edit');
-      res.json({ success: true, assignedRole: 'edit' });
+    if (!pluginSessionId || !instanceId || !role) {
+      res.status(400).json({
+        success: false,
+        error: 'pluginSessionId, instanceId, and role are required',
+      });
+      return;
     }
+
+    const result = bridge.registerInstance({
+      pluginSessionId,
+      instanceId,
+      role,
+      placeId: typeof placeId === 'number' ? placeId : 0,
+      placeName: typeof placeName === 'string' ? placeName : '',
+      dataModelName: typeof dataModelName === 'string' ? dataModelName : '',
+      isRunning: !!isRunning,
+    });
+
+    if (!result.ok) {
+      res.status(409).json({
+        success: false,
+        error: result.error.code,
+        message: result.error.message,
+        existing: result.error.existing,
+      });
+      return;
+    }
+
+    res.json({
+      success: true,
+      assignedRole: result.assignedRole,
+      instanceId: result.instanceId,
+    });
   });
 
 
   app.post('/disconnect', (req, res) => {
-    const { instanceId } = req.body;
+    const { pluginSessionId } = req.body;
 
-    if (instanceId) {
-      bridge.unregisterInstance(instanceId);
-    } else {
-      bridge.unregisterInstance('legacy');
-      bridge.clearAllPendingRequests();
+    if (pluginSessionId) {
+      bridge.unregisterInstance(pluginSessionId);
     }
     res.json({ success: true });
   });
@@ -202,7 +220,7 @@ export function createHttpServer(tools: RobloxStudioTools, bridge: BridgeService
     res.json({
       pluginConnected: instances.length > 0,
       instanceCount: instances.length,
-      instances: instances.map(i => ({ instanceId: i.instanceId, role: i.role })),
+      instances: instances.map(toPublic),
       mcpServerActive: isMCPServerActive(),
       lastMCPActivity,
       uptime: mcpServerActive ? Date.now() - mcpServerStartTime : 0
@@ -211,22 +229,27 @@ export function createHttpServer(tools: RobloxStudioTools, bridge: BridgeService
 
 
   app.get('/instances', (req, res) => {
+    // Includes the internal pluginSessionId so proxy-mode subprocesses can
+    // reproduce the full PluginInstance shape (they need the session id for
+    // local bookkeeping; not exposed via MCP tools).
     res.json({ instances: bridge.getInstances() });
   });
 
 
   app.get('/poll', (req, res) => {
-    const instanceId = req.query.instanceId as string | undefined;
+    const pluginSessionId = req.query.pluginSessionId as string | undefined;
 
-    if (instanceId) {
-      bridge.updateInstanceActivity(instanceId);
+    if (pluginSessionId) {
+      bridge.updateInstanceActivity(pluginSessionId);
     }
 
-    let callerRole = 'edit';
+    let callerInstanceId: string | undefined;
+    let callerRole: string | undefined;
     let knownInstance = false;
-    if (instanceId) {
-      const inst = bridge.getInstances().find(i => i.instanceId === instanceId);
+    if (pluginSessionId) {
+      const inst = bridge.getInstanceBySessionId(pluginSessionId);
       if (inst) {
+        callerInstanceId = inst.instanceId;
         callerRole = inst.role;
         knownInstance = true;
       }
@@ -243,12 +266,14 @@ export function createHttpServer(tools: RobloxStudioTools, bridge: BridgeService
       return;
     }
 
-    // knownInstance=false on a non-empty instanceId signals to the plugin
-    // that the MCP server process has restarted (its in-memory instances map
-    // is empty) and the plugin should re-issue /ready. Without this, polls
-    // succeed (HTTP 200) but the server treats the plugin as anonymous and
-    // routes nothing to it for target=server / target=client-N.
-    const pendingRequest = bridge.getPendingRequest(callerRole);
+    // knownInstance=false signals to the plugin that the MCP server has
+    // restarted (its in-memory instances map is empty) and the plugin
+    // should re-issue /ready. Without this, polls succeed (HTTP 200) but
+    // the server treats the plugin as anonymous and routes nothing to it.
+    const pendingRequest = knownInstance && callerInstanceId && callerRole
+      ? bridge.getPendingRequest(callerInstanceId, callerRole)
+      : null;
+
     if (pendingRequest) {
       res.json({
         request: pendingRequest.request,
@@ -284,10 +309,10 @@ export function createHttpServer(tools: RobloxStudioTools, bridge: BridgeService
 
 
   app.post('/proxy', async (req, res) => {
-    const { endpoint, data, target, proxyInstanceId } = req.body;
+    const { endpoint, data, targetInstanceId, targetRole, proxyInstanceId } = req.body;
 
-    if (!endpoint) {
-      res.status(400).json({ error: 'endpoint is required' });
+    if (!endpoint || !targetInstanceId || !targetRole) {
+      res.status(400).json({ error: 'endpoint, targetInstanceId, and targetRole are required' });
       return;
     }
 
@@ -296,7 +321,7 @@ export function createHttpServer(tools: RobloxStudioTools, bridge: BridgeService
     }
 
     try {
-      const response = await bridge.sendRequest(endpoint, data, target || 'edit');
+      const response = await bridge.sendRequest(endpoint, data, targetInstanceId, targetRole);
       res.json({ response });
     } catch (err: any) {
       res.status(500).json({ error: err.message || 'Proxy request failed' });
@@ -339,6 +364,23 @@ export function createHttpServer(tools: RobloxStudioTools, bridge: BridgeService
           try {
             return await handler(tools, args || {});
           } catch (error) {
+            if (error instanceof RoutingFailure) {
+              // Surface routing errors as structured tool-call results with
+              // the full instance list embedded so the LLM can recover by
+              // picking an instance_id from data.instances — no need for a
+              // separate get_connected_instances round-trip.
+              return {
+                content: [{
+                  type: 'text',
+                  text: JSON.stringify({
+                    error: error.routingError.code,
+                    message: error.routingError.message,
+                    data: error.routingError.data,
+                  }),
+                }],
+                isError: true,
+              };
+            }
             if (error instanceof McpError) throw error;
             throw new McpError(
               ErrorCode.InternalError,
@@ -398,6 +440,14 @@ export function createHttpServer(tools: RobloxStudioTools, bridge: BridgeService
         const result = await handler(tools, req.body);
         res.json(result);
       } catch (error) {
+        if (error instanceof RoutingFailure) {
+          res.status(400).json({
+            error: error.routingError.code,
+            message: error.routingError.message,
+            data: error.routingError.data,
+          });
+          return;
+        }
         res.status(500).json({ error: error instanceof Error ? error.message : 'Unknown error' });
       }
     });

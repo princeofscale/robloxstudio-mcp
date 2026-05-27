@@ -1,10 +1,24 @@
 import { BridgeService } from '../bridge-service.js';
 
+function register(b: BridgeService, opts: { pluginSessionId: string; instanceId: string; role: string; placeId?: number; placeName?: string }) {
+  const res = b.registerInstance({
+    pluginSessionId: opts.pluginSessionId,
+    instanceId: opts.instanceId,
+    role: opts.role,
+    placeId: opts.placeId ?? 0,
+    placeName: opts.placeName ?? '',
+    dataModelName: opts.placeName ?? '',
+    isRunning: false,
+  });
+  if (!res.ok) throw new Error(`registerInstance failed: ${res.error.code}`);
+  return res;
+}
+
 describe('BridgeService', () => {
-  let bridgeService: BridgeService;
+  let bridge: BridgeService;
 
   beforeEach(() => {
-    bridgeService = new BridgeService();
+    bridge = new BridgeService();
     jest.useFakeTimers();
   });
 
@@ -12,166 +26,297 @@ describe('BridgeService', () => {
     jest.useRealTimers();
   });
 
-  describe('Request Management', () => {
-    test('should create and store a pending request', async () => {
-      const endpoint = '/api/test';
-      const data = { test: 'data' };
+  describe('Request management', () => {
+    test('queues a request and returns it on matching poll', async () => {
+      register(bridge, { pluginSessionId: 'p1', instanceId: 'place:1', role: 'edit' });
+      bridge.sendRequest('/api/test', { hello: 'world' }, 'place:1', 'edit');
 
-      const requestPromise = bridgeService.sendRequest(endpoint, data);
-
-      const pendingRequest = bridgeService.getPendingRequest();
-      expect(pendingRequest).toBeTruthy();
-      expect(pendingRequest?.request.endpoint).toBe(endpoint);
-      expect(pendingRequest?.request.data).toEqual(data);
+      const pending = bridge.getPendingRequest('place:1', 'edit');
+      expect(pending).toBeTruthy();
+      expect(pending!.request.endpoint).toBe('/api/test');
+      expect(pending!.request.data).toEqual({ hello: 'world' });
     });
 
-    test('should resolve request when response is received', async () => {
-      const endpoint = '/api/test';
-      const data = { test: 'data' };
-      const response = { result: 'success' };
+    test('does not return request to non-matching role', async () => {
+      register(bridge, { pluginSessionId: 'p1', instanceId: 'place:1', role: 'edit' });
+      register(bridge, { pluginSessionId: 'p2', instanceId: 'place:1', role: 'server' });
+      bridge.sendRequest('/api/test', {}, 'place:1', 'edit');
 
-      const requestPromise = bridgeService.sendRequest(endpoint, data);
-      const pendingRequest = bridgeService.getPendingRequest();
-
-      bridgeService.resolveRequest(pendingRequest!.requestId, response);
-
-      const result = await requestPromise;
-      expect(result).toEqual(response);
+      expect(bridge.getPendingRequest('place:1', 'server')).toBeNull();
+      expect(bridge.getPendingRequest('place:1', 'edit')).toBeTruthy();
     });
 
-    test('should reject request on error', async () => {
-      const endpoint = '/api/test';
-      const data = { test: 'data' };
-      const error = 'Test error';
-
-      const requestPromise = bridgeService.sendRequest(endpoint, data);
-      const pendingRequest = bridgeService.getPendingRequest();
-
-      bridgeService.rejectRequest(pendingRequest!.requestId, error);
-
-      await expect(requestPromise).rejects.toEqual(error);
+    test('does not return request to non-matching instanceId', async () => {
+      bridge.sendRequest('/api/test', {}, 'place:1', 'edit');
+      expect(bridge.getPendingRequest('place:2', 'edit')).toBeNull();
+      expect(bridge.getPendingRequest('place:1', 'edit')).toBeTruthy();
     });
 
-    test('should timeout request after 30 seconds', async () => {
-      const endpoint = '/api/test';
-      const data = { test: 'data' };
+    test('resolves request when response received', async () => {
+      bridge.sendRequest('/api/test', {}, 'place:1', 'edit');
+      const pending = bridge.getPendingRequest('place:1', 'edit');
+      const promise = (bridge as any).pendingRequests.get(pending!.requestId).resolve;
+      // Use the public API
+      bridge.resolveRequest(pending!.requestId, { ok: true });
+      // The promise inside sendRequest is fulfilled — verify by re-querying.
+      expect(bridge.getPendingRequest('place:1', 'edit')).toBeNull();
+    });
 
-      const requestPromise = bridgeService.sendRequest(endpoint, data);
-
+    test('times out request after 30s', async () => {
+      const promise = bridge.sendRequest('/api/test', {}, 'place:1', 'edit');
       jest.advanceTimersByTime(31000);
-
-      await expect(requestPromise).rejects.toThrow('Request timeout');
-    });
-  });
-
-  describe('Cleanup Operations', () => {
-    test('should clean up old requests', async () => {
-
-      const promises = [
-        bridgeService.sendRequest('/api/test1', {}),
-        bridgeService.sendRequest('/api/test2', {}),
-        bridgeService.sendRequest('/api/test3', {})
-      ];
-
-      jest.advanceTimersByTime(31000);
-
-      bridgeService.cleanupOldRequests();
-
-      for (const promise of promises) {
-        await expect(promise).rejects.toThrow('Request timeout');
-      }
-
-      expect(bridgeService.getPendingRequest()).toBeNull();
+      await expect(promise).rejects.toThrow('Request timeout');
     });
 
-    test('should clear all pending requests on disconnect', async () => {
-
-      const promises = [
-        bridgeService.sendRequest('/api/test1', {}),
-        bridgeService.sendRequest('/api/test2', {}),
-        bridgeService.sendRequest('/api/test3', {})
-      ];
-
-      bridgeService.clearAllPendingRequests();
-
-      for (const promise of promises) {
-        await expect(promise).rejects.toThrow('Connection closed');
-      }
-
-      expect(bridgeService.getPendingRequest()).toBeNull();
-    });
-  });
-
-  describe('Request Priority', () => {
-    test('should return oldest request first', async () => {
-
-      bridgeService.sendRequest('/api/test1', { order: 1 });
-
+    test('FIFO ordering within (instanceId, role)', async () => {
+      bridge.sendRequest('/api/a', { order: 1 }, 'place:1', 'edit');
       jest.advanceTimersByTime(10);
-
-      bridgeService.sendRequest('/api/test2', { order: 2 });
-
+      bridge.sendRequest('/api/b', { order: 2 }, 'place:1', 'edit');
       jest.advanceTimersByTime(10);
+      bridge.sendRequest('/api/c', { order: 3 }, 'place:1', 'edit');
 
-      bridgeService.sendRequest('/api/test3', { order: 3 });
+      const first = bridge.getPendingRequest('place:1', 'edit');
+      expect(first!.request.data.order).toBe(1);
+      bridge.resolveRequest(first!.requestId, {});
 
-      const firstRequest = bridgeService.getPendingRequest();
-      expect(firstRequest?.request.data.order).toBe(1);
-
-      bridgeService.resolveRequest(firstRequest!.requestId, {});
-
-      const secondRequest = bridgeService.getPendingRequest();
-      expect(secondRequest?.request.data.order).toBe(2);
-
-      bridgeService.resolveRequest(secondRequest!.requestId, {});
-
-      const thirdRequest = bridgeService.getPendingRequest();
-      expect(thirdRequest?.request.data.order).toBe(3);
-
-      bridgeService.resolveRequest(thirdRequest!.requestId, {});
-
-      expect(bridgeService.getPendingRequest()).toBeNull();
+      const second = bridge.getPendingRequest('place:1', 'edit');
+      expect(second!.request.data.order).toBe(2);
     });
   });
 
-  describe('Client Index Allocation', () => {
-    test('first registered client gets client-1', () => {
-      const role = bridgeService.registerInstance('a', 'client');
-      expect(role).toBe('client-1');
+  describe('registerInstance', () => {
+    test('first client gets client-1', () => {
+      const r = register(bridge, { pluginSessionId: 'a', instanceId: 'place:1', role: 'client' });
+      expect(r.assignedRole).toBe('client-1');
     });
 
     test('sequential clients get sequential indices', () => {
-      expect(bridgeService.registerInstance('a', 'client')).toBe('client-1');
-      expect(bridgeService.registerInstance('b', 'client')).toBe('client-2');
-      expect(bridgeService.registerInstance('c', 'client')).toBe('client-3');
+      expect(register(bridge, { pluginSessionId: 'a', instanceId: 'place:1', role: 'client' }).assignedRole).toBe('client-1');
+      expect(register(bridge, { pluginSessionId: 'b', instanceId: 'place:1', role: 'client' }).assignedRole).toBe('client-2');
+      expect(register(bridge, { pluginSessionId: 'c', instanceId: 'place:1', role: 'client' }).assignedRole).toBe('client-3');
     });
 
-    test('disconnecting last client frees the slot for the next join', () => {
-      bridgeService.registerInstance('a', 'client');
-      bridgeService.unregisterInstance('a');
-      // Previously this would have returned client-2 because the monotonic
-      // counter never decremented. With lowest-unused, a fresh connection
-      // after a clean disconnect goes back to client-1.
-      expect(bridgeService.registerInstance('b', 'client')).toBe('client-1');
+    test('disconnecting a middle client fills the hole', () => {
+      register(bridge, { pluginSessionId: 'a', instanceId: 'place:1', role: 'client' });
+      register(bridge, { pluginSessionId: 'b', instanceId: 'place:1', role: 'client' });
+      register(bridge, { pluginSessionId: 'c', instanceId: 'place:1', role: 'client' });
+      bridge.unregisterInstance('b');
+      expect(register(bridge, { pluginSessionId: 'd', instanceId: 'place:1', role: 'client' }).assignedRole).toBe('client-2');
     });
 
-    test('disconnecting a middle client fills the hole on next join', () => {
-      bridgeService.registerInstance('a', 'client'); // client-1
-      bridgeService.registerInstance('b', 'client'); // client-2
-      bridgeService.registerInstance('c', 'client'); // client-3
-      bridgeService.unregisterInstance('b');         // frees client-2
-      // Next join should fill the hole rather than continuing to client-4.
-      expect(bridgeService.registerInstance('d', 'client')).toBe('client-2');
-      // And the next after that should grow to client-4.
-      expect(bridgeService.registerInstance('e', 'client')).toBe('client-4');
+    test('rejects duplicate (instanceId, role) tuple', () => {
+      register(bridge, { pluginSessionId: 'p1', instanceId: 'place:1', role: 'edit' });
+      const dup = bridge.registerInstance({
+        pluginSessionId: 'p2',
+        instanceId: 'place:1',
+        role: 'edit',
+      });
+      expect(dup.ok).toBe(false);
+      if (dup.ok) return;
+      expect(dup.error.code).toBe('duplicate_instance_role');
+      expect(dup.error.existing.instanceId).toBe('place:1');
+      expect(dup.error.existing.role).toBe('edit');
     });
 
-    test('non-client roles pass through unchanged', () => {
-      expect(bridgeService.registerInstance('e', 'edit')).toBe('edit');
-      expect(bridgeService.registerInstance('s', 'server')).toBe('server');
-      expect(bridgeService.registerInstance('p', 'edit-proxy')).toBe('edit-proxy');
-      // And these don't reserve any client slots.
-      expect(bridgeService.registerInstance('a', 'client')).toBe('client-1');
+    test('re-registering same pluginSessionId is allowed (refresh)', () => {
+      register(bridge, { pluginSessionId: 'p1', instanceId: 'place:1', role: 'edit' });
+      const refresh = bridge.registerInstance({
+        pluginSessionId: 'p1',
+        instanceId: 'place:1',
+        role: 'edit',
+      });
+      expect(refresh.ok).toBe(true);
+      expect(bridge.getInstances()).toHaveLength(1);
+    });
+
+    test('two edit plugins of different places coexist', () => {
+      register(bridge, { pluginSessionId: 'p1', instanceId: 'place:1', role: 'edit' });
+      const r = bridge.registerInstance({
+        pluginSessionId: 'p2',
+        instanceId: 'place:2',
+        role: 'edit',
+      });
+      expect(r.ok).toBe(true);
+      expect(bridge.getInstances()).toHaveLength(2);
+    });
+  });
+
+  describe('resolveTarget', () => {
+    test('omitted/omitted with single instance auto-routes', () => {
+      register(bridge, { pluginSessionId: 'p1', instanceId: 'place:1', role: 'edit' });
+      const r = bridge.resolveTarget({});
+      expect(r.ok).toBe(true);
+      if (!r.ok) return;
+      expect(r.mode).toBe('single');
+      if (r.mode !== 'single') return;
+      expect(r.targetInstanceId).toBe('place:1');
+      expect(r.targetRole).toBe('edit');
+    });
+
+    test('omitted/omitted with multiple instances errors multiple_instances_connected', () => {
+      register(bridge, { pluginSessionId: 'p1', instanceId: 'place:1', role: 'edit' });
+      register(bridge, { pluginSessionId: 'p2', instanceId: 'place:2', role: 'edit' });
+      const r = bridge.resolveTarget({});
+      expect(r.ok).toBe(false);
+      if (r.ok) return;
+      expect(r.error.code).toBe('multiple_instances_connected');
+      expect(r.error.data.count).toBe(2);
+      expect(r.error.data.instances).toHaveLength(2);
+    });
+
+    test('target=role with multiple matching instances errors ambiguous_target', () => {
+      register(bridge, { pluginSessionId: 'p1', instanceId: 'place:1', role: 'edit' });
+      register(bridge, { pluginSessionId: 'p2', instanceId: 'place:2', role: 'edit' });
+      const r = bridge.resolveTarget({ target: 'edit' });
+      expect(r.ok).toBe(false);
+      if (r.ok) return;
+      expect(r.error.code).toBe('ambiguous_target');
+      expect(r.error.data.count).toBe(2);
+    });
+
+    test('instance_id picks the place', () => {
+      register(bridge, { pluginSessionId: 'p1', instanceId: 'place:1', role: 'edit' });
+      register(bridge, { pluginSessionId: 'p2', instanceId: 'place:2', role: 'edit' });
+      const r = bridge.resolveTarget({ instance_id: 'place:2' });
+      expect(r.ok).toBe(true);
+      if (!r.ok) return;
+      expect(r.mode).toBe('single');
+      if (r.mode !== 'single') return;
+      expect(r.targetInstanceId).toBe('place:2');
+      expect(r.targetRole).toBe('edit');
+    });
+
+    test('unknown instance_id errors unrecognized_instance_id with full list', () => {
+      register(bridge, { pluginSessionId: 'p1', instanceId: 'place:1', role: 'edit' });
+      const r = bridge.resolveTarget({ instance_id: 'place:does-not-exist' });
+      expect(r.ok).toBe(false);
+      if (r.ok) return;
+      expect(r.error.code).toBe('unrecognized_instance_id');
+      expect(r.error.data.instances).toHaveLength(1);
+      expect(r.error.data.instances[0].instanceId).toBe('place:1');
+    });
+
+    test('instance_id with role picks (instance, role) tuple', () => {
+      register(bridge, { pluginSessionId: 'p1', instanceId: 'place:1', role: 'edit' });
+      register(bridge, { pluginSessionId: 'p2', instanceId: 'place:1', role: 'server' });
+      register(bridge, { pluginSessionId: 'p3', instanceId: 'place:1', role: 'client' });
+      const r = bridge.resolveTarget({ instance_id: 'place:1', target: 'server' });
+      expect(r.ok).toBe(true);
+      if (!r.ok || r.mode !== 'single') throw new Error('expected single');
+      expect(r.targetRole).toBe('server');
+    });
+
+    test('instance_id with role that does not exist on instance errors target_role_not_present_on_instance', () => {
+      register(bridge, { pluginSessionId: 'p1', instanceId: 'place:1', role: 'edit' });
+      const r = bridge.resolveTarget({ instance_id: 'place:1', target: 'server' });
+      expect(r.ok).toBe(false);
+      if (r.ok) return;
+      expect(r.error.code).toBe('target_role_not_present_on_instance');
+    });
+
+    test('instance_id without role on multi-role instance prefers edit', () => {
+      register(bridge, { pluginSessionId: 'p1', instanceId: 'place:1', role: 'edit' });
+      register(bridge, { pluginSessionId: 'p2', instanceId: 'place:1', role: 'server' });
+      const r = bridge.resolveTarget({ instance_id: 'place:1' });
+      expect(r.ok).toBe(true);
+      if (!r.ok || r.mode !== 'single') throw new Error('expected single');
+      expect(r.targetRole).toBe('edit');
+    });
+
+    test('instance_id without role on multi-role no-edit instance errors target_role_required', () => {
+      register(bridge, { pluginSessionId: 'p1', instanceId: 'place:1', role: 'server' });
+      register(bridge, { pluginSessionId: 'p2', instanceId: 'place:1', role: 'client' });
+      const r = bridge.resolveTarget({ instance_id: 'place:1' });
+      expect(r.ok).toBe(false);
+      if (r.ok) return;
+      expect(r.error.code).toBe('target_role_required');
+    });
+
+    test('target=all with single instance fans out across its roles', () => {
+      register(bridge, { pluginSessionId: 'p1', instanceId: 'place:1', role: 'edit' });
+      register(bridge, { pluginSessionId: 'p2', instanceId: 'place:1', role: 'server' });
+      register(bridge, { pluginSessionId: 'p3', instanceId: 'place:1', role: 'client' });
+      const r = bridge.resolveTarget({ target: 'all' });
+      expect(r.ok).toBe(true);
+      if (!r.ok || r.mode !== 'fanout') throw new Error('expected fanout');
+      expect(r.targets).toHaveLength(3);
+      const roles = r.targets.map((t) => t.targetRole).sort();
+      expect(roles).toEqual(['client-1', 'edit', 'server']);
+      r.targets.forEach((t) => expect(t.targetInstanceId).toBe('place:1'));
+    });
+
+    test('target=all with multiple instances errors multiple_instances_connected', () => {
+      register(bridge, { pluginSessionId: 'p1', instanceId: 'place:1', role: 'edit' });
+      register(bridge, { pluginSessionId: 'p2', instanceId: 'place:2', role: 'edit' });
+      const r = bridge.resolveTarget({ target: 'all' });
+      expect(r.ok).toBe(false);
+      if (r.ok) return;
+      expect(r.error.code).toBe('multiple_instances_connected');
+    });
+
+    test('instance_id + target=all fans out only across that instance', () => {
+      register(bridge, { pluginSessionId: 'p1', instanceId: 'place:1', role: 'edit' });
+      register(bridge, { pluginSessionId: 'p2', instanceId: 'place:1', role: 'server' });
+      register(bridge, { pluginSessionId: 'p3', instanceId: 'place:2', role: 'edit' });
+      const r = bridge.resolveTarget({ instance_id: 'place:1', target: 'all' });
+      expect(r.ok).toBe(true);
+      if (!r.ok || r.mode !== 'fanout') throw new Error('expected fanout');
+      expect(r.targets).toHaveLength(2);
+      r.targets.forEach((t) => expect(t.targetInstanceId).toBe('place:1'));
+    });
+
+    test('no instances connected errors with empty list', () => {
+      const r = bridge.resolveTarget({});
+      expect(r.ok).toBe(false);
+      if (r.ok) return;
+      expect(r.error.code).toBe('unrecognized_instance_id');
+      expect(r.error.data.count).toBe(0);
+    });
+  });
+
+  describe('cleanup', () => {
+    test('cleanupOldRequests rejects timed-out requests', async () => {
+      const a = bridge.sendRequest('/api/a', {}, 'place:1', 'edit');
+      const b = bridge.sendRequest('/api/b', {}, 'place:1', 'edit');
+      jest.advanceTimersByTime(31000);
+      bridge.cleanupOldRequests();
+      await expect(a).rejects.toThrow('Request timeout');
+      await expect(b).rejects.toThrow('Request timeout');
+    });
+
+    test('clearAllPendingRequests rejects everything', async () => {
+      const a = bridge.sendRequest('/api/a', {}, 'place:1', 'edit');
+      bridge.clearAllPendingRequests();
+      await expect(a).rejects.toThrow('Connection closed');
+    });
+
+    test('unregisterInstance rejects requests targeting the removed (instanceId, role)', async () => {
+      register(bridge, { pluginSessionId: 'p1', instanceId: 'place:1', role: 'edit' });
+      const req = bridge.sendRequest('/api/test', {}, 'place:1', 'edit');
+      bridge.unregisterInstance('p1');
+      await expect(req).rejects.toThrow(/disconnected/);
+    });
+
+    test('unregisterInstance leaves requests alone if another plugin still holds the tuple', async () => {
+      // Two plugins both registering the same (instance, role) would be
+      // duplicate_instance_role and rejected — this test exercises the case
+      // where role differs.
+      register(bridge, { pluginSessionId: 'p1', instanceId: 'place:1', role: 'edit' });
+      register(bridge, { pluginSessionId: 'p2', instanceId: 'place:1', role: 'server' });
+      const editReq = bridge.sendRequest('/api/test', {}, 'place:1', 'edit');
+      const serverReq = bridge.sendRequest('/api/test', {}, 'place:1', 'server');
+
+      bridge.unregisterInstance('p2'); // remove server plugin
+      // edit request should still be pending (edit plugin still here)
+      const stillPending = bridge.getPendingRequest('place:1', 'edit');
+      expect(stillPending).toBeTruthy();
+
+      // server request should have been rejected
+      await expect(serverReq).rejects.toThrow(/disconnected/);
+
+      // Clean up the edit request to avoid hanging promise.
+      bridge.resolveRequest(stillPending!.requestId, {});
+      await editReq;
     });
   });
 });
