@@ -16,6 +16,7 @@ import InputHandlers from "./handlers/InputHandlers";
 import LogHandlers from "./handlers/LogHandlers";
 import SerializationHandlers from "./handlers/SerializationHandlers";
 import MemoryHandlers from "./handlers/MemoryHandlers";
+import SceneAnalysisHandlers from "./handlers/SceneAnalysisHandlers";
 import { Connection, RequestPayload, PollResponse, ReadyResponse } from "../types";
 
 // Per-plugin-load random GUID. Used as the /poll URL param so the server
@@ -162,6 +163,7 @@ const routeMap: Record<string, Handler> = {
 	"/api/import-rbxm": SerializationHandlers.importRbxm,
 
 	"/api/get-memory-breakdown": MemoryHandlers.getMemoryBreakdown,
+	"/api/get-scene-analysis": SceneAnalysisHandlers.getSceneAnalysis,
 };
 
 function processRequest(request: RequestPayload): unknown {

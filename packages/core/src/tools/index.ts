@@ -519,6 +519,29 @@ export class RobloxStudioTools {
     return { ok: false, roles, timedOut: true, extraClients: clientCount > expectedClientCount, clientCount };
   }
 
+  private async _waitForRuntimeRolesFresh(
+    instanceId: string,
+    connectedAfter: number,
+    requiredRoles: string[],
+    timeoutSec = 60,
+  ): Promise<{ ok: boolean; roles: string[]; timedOut: boolean }> {
+    const deadline = Date.now() + timeoutSec * 1000;
+    while (Date.now() < deadline) {
+      const instances = this.bridge.getInstances().filter((i) => i.instanceId === instanceId);
+      const roles = instances.map((i) => i.role);
+      const freshRoles = new Set(
+        instances
+          .filter((i) => i.connectedAt >= connectedAfter)
+          .map((i) => i.role),
+      );
+      if (requiredRoles.every((role) => freshRoles.has(role))) {
+        return { ok: true, roles, timedOut: false };
+      }
+      await sleep(250);
+    }
+    return { ok: false, roles: this._rolesForInstance(instanceId), timedOut: true };
+  }
+
 
   async getFileTree(path: string = '', instance_id?: string) {
     const response = await this._callSingle('/api/file-tree', { path }, undefined, instance_id);
@@ -1334,12 +1357,43 @@ export class RobloxStudioTools {
       throw new Error('start_playtest is single-player only. Use multiplayer_test_start for multi-client StudioTestService sessions.');
     }
     const data: Record<string, unknown> = { mode };
-    const response = await this._callSingle('/api/start-playtest', data, undefined, instance_id);
+    const startedAt = Date.now();
+    const resolved = this.bridge.resolveTarget({ instance_id, target: undefined });
+    if (!resolved.ok) throw new RoutingFailure(resolved.error);
+    if (resolved.mode !== 'single') {
+      throw new RoutingFailure({
+        code: 'target_role_not_present_on_instance',
+        message: 'This tool does not support target=all. Pick a specific role or omit target.',
+        data: {
+          instances: this.bridge.getPublicInstances(),
+          count: this.bridge.getInstances().length,
+        },
+      });
+    }
+    const response = await this.client.request(
+      '/api/start-playtest',
+      data,
+      resolved.targetInstanceId,
+      resolved.targetRole,
+    );
+    let wait: { ok: boolean; roles: string[]; timedOut: boolean } | undefined;
+    if (response?.success === true) {
+      const requiredRoles = mode === 'play' ? ['server', 'client-1'] : ['server'];
+      wait = await this._waitForRuntimeRolesFresh(resolved.targetInstanceId, startedAt, requiredRoles);
+    }
+    const body = wait
+      ? {
+        ...response,
+        runtimeReady: wait.ok,
+        timedOut: wait.timedOut,
+        roles: wait.roles,
+      }
+      : response;
     return {
       content: [
         {
           type: 'text',
-          text: JSON.stringify(response)
+          text: JSON.stringify(body)
         }
       ]
     };
@@ -2621,6 +2675,54 @@ export class RobloxStudioTools {
         peer: t.targetRole,
         result: await this.client.request(
           '/api/get-memory-breakdown',
+          data,
+          t.targetInstanceId,
+          t.targetRole,
+        ),
+      })),
+    );
+
+    const body: Record<string, unknown> = {};
+    for (let i = 0; i < responses.length; i++) {
+      const r = responses[i];
+      const peer = targets[i].targetRole;
+      if (r.status === 'fulfilled') {
+        body[peer] = r.value.result;
+      } else {
+        body[peer] = { error: 'disconnected' };
+      }
+    }
+
+    return { content: [{ type: 'text', text: JSON.stringify(body) }] };
+  }
+
+  async getSceneAnalysis(mode?: string, target?: string, topN?: number, raw?: boolean, instance_id?: string) {
+    const tgt = target ?? 'all';
+    const data: Record<string, unknown> = {};
+    if (mode !== undefined) data.mode = mode;
+    if (topN !== undefined) data.topN = topN;
+    if (raw !== undefined) data.raw = raw;
+
+    const resolved = this.bridge.resolveTarget({ instance_id, target: tgt });
+    if (!resolved.ok) throw new RoutingFailure(resolved.error);
+
+    if (resolved.mode === 'single') {
+      const response = await this.client.request(
+        '/api/get-scene-analysis',
+        data,
+        resolved.targetInstanceId,
+        resolved.targetRole,
+      );
+      return { content: [{ type: 'text', text: JSON.stringify(response) }] };
+    }
+
+    const targets = resolved.targets.filter((t) => t.targetRole !== 'edit-proxy');
+
+    const responses = await Promise.allSettled(
+      targets.map(async (t) => ({
+        peer: t.targetRole,
+        result: await this.client.request(
+          '/api/get-scene-analysis',
           data,
           t.targetInstanceId,
           t.targetRole,

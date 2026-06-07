@@ -1,6 +1,7 @@
 import { HttpService, Players, ReplicatedStorage, RunService, ServerStorage } from "@rbxts/services";
 import RuntimeLogBuffer from "./RuntimeLogBuffer";
 import MemoryHandlers from "./handlers/MemoryHandlers";
+import SceneAnalysisHandlers from "./handlers/SceneAnalysisHandlers";
 import CaptureHandlers from "./handlers/CaptureHandlers";
 import InputHandlers from "./handlers/InputHandlers";
 import LuauExec from "./LuauExec";
@@ -87,6 +88,7 @@ const CLIENT_BROKER_ALLOWED_ENDPOINTS = new Set<string>([
 	"/api/execute-luau",
 	"/api/get-runtime-logs",
 	"/api/get-memory-breakdown",
+	"/api/get-scene-analysis",
 	"/api/multiplayer-test-state",
 	"/api/multiplayer-test-leave-client",
 	// Screenshot capture must run in the client peer (CaptureService captures
@@ -224,7 +226,7 @@ function handleMultiplayerTestLeaveClient(): unknown {
 function setupClientBroker() {
 	const rf = ReplicatedStorage.WaitForChild(BROKER_NAME, 10);
 	if (!rf || !rf.IsA("RemoteFunction")) {
-		warn(`[MCPFork] client: ${BROKER_NAME} not found`);
+		warn(`[robloxstudio-mcp] client: ${BROKER_NAME} not found`);
 		return;
 	}
 	rf.OnClientInvoke = (payload: BrokerEnvelope | undefined) => {
@@ -239,6 +241,9 @@ function setupClientBroker() {
 		}
 		if (payload && payload.endpoint === "/api/get-memory-breakdown") {
 			return MemoryHandlers.getMemoryBreakdown(payload.data ?? {});
+		}
+		if (payload && payload.endpoint === "/api/get-scene-analysis") {
+			return SceneAnalysisHandlers.getSceneAnalysis(payload.data ?? {});
 		}
 		if (payload && payload.endpoint === "/api/multiplayer-test-state") {
 			return handleMultiplayerTestState();
@@ -326,7 +331,7 @@ function registerProxy(player: Player, rf: RemoteFunction) {
 		isRunning: RunService.IsRunning(),
 	});
 	if (!ok || !res || !res.Success) {
-		warn(`[MCPFork] proxy register failed for ${player.Name}`);
+		warn(`[robloxstudio-mcp] proxy register failed for ${player.Name}`);
 		return;
 	}
 	const body = HttpService.JSONDecode(res.Body) as ReadyResponseBody;

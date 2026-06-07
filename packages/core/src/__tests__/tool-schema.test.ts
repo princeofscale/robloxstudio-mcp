@@ -160,6 +160,7 @@ describe('Tool schema compatibility', () => {
       simulate_keyboard_input: 'simulateKeyboardInput',
       character_navigation: 'characterNavigation',
       get_memory_breakdown: 'getMemoryBreakdown',
+      get_scene_analysis: 'getSceneAnalysis',
       export_rbxm: 'exportRbxm',
       import_rbxm: 'importRbxm',
       find_and_replace_in_scripts: 'findAndReplaceInScripts',
@@ -181,5 +182,21 @@ describe('Tool schema compatibility', () => {
       }
     }
     expect(offenders).toEqual([]);
+  });
+
+  test('get_scene_analysis schema exposes mode, target, topN, raw, and instance_id', () => {
+    const tool = TOOL_DEFINITIONS.find((t) => t.name === 'get_scene_analysis');
+    expect(tool).toBeTruthy();
+    const props = (tool!.inputSchema as { properties?: Record<string, unknown> }).properties ?? {};
+    expect(Object.keys(props).sort()).toEqual(['instance_id', 'mode', 'raw', 'target', 'topN'].sort());
+    expect((props.mode as { enum?: string[] }).enum).toEqual([
+      'all',
+      'instance_composition',
+      'script_memory',
+      'unparented_instances',
+      'triangle_composition',
+      'animation_memory',
+      'audio_memory',
+    ]);
   });
 });

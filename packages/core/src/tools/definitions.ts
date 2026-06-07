@@ -986,7 +986,7 @@ export const TOOL_DEFINITIONS: ToolDefinition[] = [
   {
     name: 'start_playtest',
     category: 'write',
-    description: 'Start a simple single-player Studio playtest in play or run mode. Captures print/warn/error via LogService. Poll with get_playtest_output, end with stop_playtest. For multi-client testing use multiplayer_test_start instead.',
+    description: 'Start a simple single-player Studio playtest in play or run mode, waiting until a runtime peer registers with MCP. Captures print/warn/error via LogService. Poll with get_playtest_output, end with stop_playtest. For multi-client testing use multiplayer_test_start instead.',
     inputSchema: {
       type: 'object',
       properties: {
@@ -1965,6 +1965,39 @@ part(0,2,0,2,1,1,"b")`,
           type: 'array',
           items: { type: 'string' },
           description: 'Optional DeveloperMemoryTag whitelist. Unknown tag names return 0 + unknown_tags list.'
+        },
+        instance_id: {
+          type: 'string',
+          description: 'Which connected Studio place to target. Required when multiple places are connected; omit when one. Use get_connected_instances to list available IDs.'
+        }
+      }
+    }
+  },
+  {
+    name: 'get_scene_analysis',
+    category: 'read',
+    description: 'Read Roblox SceneAnalysisService data for attribution-focused performance analysis. Complements get_memory_breakdown: returns compact top-N entries for instance composition, script memory, unparented instances, triangle composition, animation memory, and audio memory. Requires the Studio Scene Analysis beta feature; if disabled, returns scene_analysis_not_enabled with betaFeatureRequired=true. target="all" (default) returns per-peer data; single-peer targets return that peer directly. raw=true includes the full nested Scene Analysis tree.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        mode: {
+          type: 'string',
+          enum: ['all', 'instance_composition', 'script_memory', 'unparented_instances', 'triangle_composition', 'animation_memory', 'audio_memory'],
+          description: 'Scene analysis mode to read. Defaults to "all".'
+        },
+        target: {
+          type: 'string',
+          description: 'Peer to read from: "edit", "server", "client-N", or "all" (default).'
+        },
+        topN: {
+          type: 'number',
+          minimum: 1,
+          maximum: 100,
+          description: 'Number of flattened top entries to include per mode. Defaults to 10; plugin clamps to 1-100.'
+        },
+        raw: {
+          type: 'boolean',
+          description: 'Include the full nested SceneAnalysisService tree in each mode result. Defaults to false.'
         },
         instance_id: {
           type: 'string',

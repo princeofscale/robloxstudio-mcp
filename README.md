@@ -1,26 +1,23 @@
 # Roblox Studio MCP Server
 
-**The MCP server for serious Roblox developers. Drive playtests, evaluate Luau on the running game's server and client peers, and read live runtime state — from Claude, Cursor, Codex, or Gemini.**
+**An MCP server for Roblox Studio runtime debugging, playtest automation, and bulk place editing from Claude, Cursor, Codex, or Gemini.**
 
 [![NPM Version](https://img.shields.io/npm/v/@chrrxs/robloxstudio-mcp)](https://www.npmjs.com/package/@chrrxs/robloxstudio-mcp)
 
-## Why this one
+## Why this server
 
-If you only need to read scripts and inspect static instance trees, the [official Roblox MCP](https://create.roblox.com/docs/studio/mcp) is enough.
+Use this when you want your agent to debug and operate a live Roblox Studio session with precise runtime control:
 
-Pick this if you want to:
+- `edit`, `server`, and `client-N` targeting for live playtests.
+- Game-VM eval on the server or a specific client, sharing the same `require` cache as your scripts.
+- Explicit StudioTestService multiplayer runs: start, add/remove clients, inspect state, and end.
+- Runtime logs, Stats memory, and Scene Analysis attribution per peer.
+- Viewport screenshots plus virtual mouse, keyboard, character navigation, and UI interaction.
+- Bulk property/script/attribute/tag operations for large places.
+- `.rbxm` import/export through `SerializationService`.
+- A read-only inspector package for safer review/debugging sessions.
 
-- **Start a playtest from your AI agent**, watch it run, and stop it cleanly — every time.
-- **Run explicit multiplayer Studio tests** with `multiplayer_test_start`, add/remove clients, inspect state, and end the test without hand-wiring StudioTestService calls.
-- **See and control the running game** — capture the live play viewport as an image, then drive it with clicks, typing, and key presses (move the character, press buttons, interact). Screenshots work in Edit mode too.
-- **Evaluate Luau inside the running game**, on the server peer *or* a specific client, with access to the same `require` cache your game scripts use. Inspect runtime-mutated module state — networking caches, ECS tick state, datastore queues — that sandboxed eval can't see.
-- **Read live logs, memory, selection, and properties per peer** during a playtest. `target=edit | server | client-N` everywhere it makes sense.
-- **Round-trip parts of your place through `.rbxm`** (export/import via `SerializationService`) and undo the whole import with one Ctrl+Z.
-- **Get the real parser error** when your eval has a syntax bug — not a generic "Requested module experienced an error while loading".
-
-75 tools total — full file-tree, mass property reads/writes, script search-and-replace, attribute/tag management, build import/export, asset insertion, screenshot capture, virtual mouse/keyboard input, ScriptEditorService integration, .rbxm bundling, runtime memory inspection.
-
-A fork of [boshyxd/robloxstudio-mcp](https://github.com/boshyxd/robloxstudio-mcp) v2.7.0 with the playtest-driving and per-peer pieces actually working out of the box.
+75 tools total, including file tree inspection, mass reads/writes, script search-and-replace, asset insertion, build import/export, screenshot capture, runtime eval, memory tools, Scene Analysis, and playtest control.
 
 ## Setup
 
@@ -98,7 +95,7 @@ gemini mcp add robloxstudio-inspector npx --trust -- -y @chrrxs/robloxstudio-mcp
 ---
 
 <!-- VERSION_LINE -->
-**v2.14.0** — based on boshyxd v2.7.0
+**v2.15.0**
 
 ## Building from source
 
@@ -112,4 +109,4 @@ node scripts/build-plugin.mjs --variant inspector        # → MCPInspectorPlugi
 
 On WSL the `.rbxmx` is auto-installed into `/mnt/c/Users/<you>/AppData/Local/Roblox/Plugins/`, and the local build script removes the other plugin variant from that folder. Set `MCP_PLUGINS_DIR` to override. **Fully close and reopen Studio** after a plugin rebuild, and verify only the one variant you intend to test remains in the Plugins folder.
 
-[Report Issues](https://github.com/chrrxs/robloxstudio-mcp/issues) · Upstream: [boshyxd/robloxstudio-mcp](https://github.com/boshyxd/robloxstudio-mcp) · MIT Licensed
+[Report Issues](https://github.com/chrrxs/robloxstudio-mcp/issues) · MIT Licensed · Based on [boshyxd/robloxstudio-mcp](https://github.com/boshyxd/robloxstudio-mcp) v2.7.0
