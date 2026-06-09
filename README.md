@@ -11,7 +11,7 @@ Use this when you want your agent to debug and operate a live Roblox Studio sess
 - `edit`, `server`, and `client-N` targeting for live playtests.
 - Game-VM eval on the server or a specific client, sharing the same `require` cache as your scripts.
 - Explicit StudioTestService multiplayer runs: start, add/remove clients, inspect state, and end.
-- Runtime logs, Stats memory, and Scene Analysis attribution per peer.
+- Runtime log capture buffers, plus Stats memory and Scene Analysis attribution per peer.
 - Viewport screenshots plus virtual mouse, keyboard, character navigation, and UI interaction.
 - Bulk property/script/attribute/tag operations for large places.
 - `.rbxm` import/export through `SerializationService`.
@@ -84,21 +84,21 @@ On Windows, wrap with `cmd /c` if `npx` doesn't resolve:
 
 Same plugin family, different `.rbxmx`. 35 read-only tools — no writes, no script edits, no creation/deletion. Safe for browsing, code review, and debugging without risk of accidental changes.
 
-Install only one variant at a time. Do not leave both `MCPPlugin.rbxmx` and `MCPInspectorPlugin.rbxmx` in the Studio Plugins folder; Studio loads both and they can register duplicate runtime peers. `--replace-variant` removes the other variant before installing:
+Install only one variant at a time. Do not leave both `MCPPlugin.rbxmx` and `MCPInspectorPlugin.rbxmx` in the Studio Plugins folder; Studio loads both and they can register duplicate runtime peers. The CLI installers remove the other variant before installing:
 
 ```bash
-npx -y @chrrxs/robloxstudio-mcp-inspector@latest --install-plugin --replace-variant
+npx -y @chrrxs/robloxstudio-mcp-inspector@latest --install-plugin
 
 # Claude / Codex / Gemini — same shape, different package name
-claude mcp add robloxstudio-inspector -- npx -y @chrrxs/robloxstudio-mcp-inspector@latest --auto-install-plugin --replace-variant
-codex mcp add robloxstudio-inspector -- npx -y @chrrxs/robloxstudio-mcp-inspector@latest --auto-install-plugin --replace-variant
-gemini mcp add robloxstudio-inspector npx --trust -- -y @chrrxs/robloxstudio-mcp-inspector@latest --auto-install-plugin --replace-variant
+claude mcp add robloxstudio-inspector -- npx -y @chrrxs/robloxstudio-mcp-inspector@latest --auto-install-plugin
+codex mcp add robloxstudio-inspector -- npx -y @chrrxs/robloxstudio-mcp-inspector@latest --auto-install-plugin
+gemini mcp add robloxstudio-inspector npx --trust -- -y @chrrxs/robloxstudio-mcp-inspector@latest --auto-install-plugin
 ```
 
 ---
 
 <!-- VERSION_LINE -->
-**v2.15.1**
+**v2.15.2**
 
 ## Building from source
 

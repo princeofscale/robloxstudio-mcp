@@ -1,16 +1,16 @@
 #!/usr/bin/env node
 // In multi-session deployments, every MCP subprocess past the first runs
 // in proxy mode (forwarding to localhost:58741). Tools that enumerate
-// peers — get_runtime_logs target=all, get_connected_instances,
-// get_memory_breakdown target=all — must return the primary's actual peer
-// list, not the proxy's own empty instances Map. ProxyBridgeService caches
+// capture/peer data — get_runtime_logs target=all, get_connected_instances,
+// get_memory_breakdown target=all — must return the primary's actual connected
+// data, not the proxy's own empty instances Map. ProxyBridgeService caches
 // the primary's /instances response and overrides getInstances() so any
 // peer-fanout tool works from any subprocess.
 //
 // Regression test for the multi-session proxy-mode fanout bug fixed in
-// v2.11.3. The bug's signature was perPeerNextSince:{} (zero keys, not
+// v2.11.3. The bug's signature was perCaptureNextSince:{} (zero keys, not
 // zero values), meaning the aggregator didn't even attempt to query any
-// peer.
+// capture buffer.
 //
 // PREREQUISITE: an existing primary on port 58741 with a Studio plugin
 // polling it (typically the developer's Claude Code MCP subprocess). This
@@ -45,11 +45,11 @@ await runTest('proxy-mode subprocess fans out to peers via primary', async ({ tr
     // Give LogService.MessageOut a moment to flush to the buffer
     await delay(500);
 
-    // Case 1: get_runtime_logs target=all should now have peers
+    // Case 1: get_runtime_logs target=all should now have capture buffers
     const logs = await proxy.callTool('get_runtime_logs', { target: 'all', tail: 50 });
-    const peerKeys = Object.keys(logs.perPeerNextSince ?? {});
-    assert(peerKeys.length > 0,
-      `get_runtime_logs target=all reports at least one peer (got: ${peerKeys.length} -> ${JSON.stringify(peerKeys)})`);
+    const captureKeys = Object.keys(logs.perCaptureNextSince ?? {});
+    assert(captureKeys.length > 0,
+      `get_runtime_logs target=all reports at least one capture buffer (got: ${captureKeys.length} -> ${JSON.stringify(captureKeys)})`);
     assertContains(JSON.stringify(logs), MARKER,
       'log entries contain our marker (fanout actually reached primary)');
 

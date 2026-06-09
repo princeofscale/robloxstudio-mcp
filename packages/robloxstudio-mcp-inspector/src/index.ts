@@ -3,7 +3,7 @@ import { createRequire } from 'module';
 
 if (process.argv.includes('--install-plugin')) {
   const { installPlugin } = await import('./install-plugin.js');
-  installPlugin().catch((err) => {
+  await installPlugin().catch((err) => {
     console.error(err instanceof Error ? err.message : String(err));
     process.exitCode = 1;
   });
@@ -11,7 +11,6 @@ if (process.argv.includes('--install-plugin')) {
   if (process.argv.includes('--auto-install-plugin')) {
     const { installBundledPlugin } = await import('./install-plugin.js');
     await installBundledPlugin({
-      replaceVariant: process.argv.includes('--replace-variant'),
       log: (message) => console.error(`[install-plugin] ${message}`),
       warn: (message) => console.error(message),
     }).catch((err) => {

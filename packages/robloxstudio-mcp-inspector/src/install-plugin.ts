@@ -97,21 +97,47 @@ function bundledAssetPath(): string | null {
   return candidates.find((candidate) => existsSync(candidate)) ?? null;
 }
 
+function packageVersion(): string {
+  const currentDir = dirname(fileURLToPath(import.meta.url));
+  const pkg = JSON.parse(readFileSync(join(currentDir, '..', 'package.json'), 'utf8')) as { version?: string };
+  if (!pkg.version) {
+    throw new Error('Package version not found');
+  }
+  return pkg.version;
+}
+
+function bundledPluginVersion(source: string): string | null {
+  const match = readFileSync(source, 'utf8').match(/local CURRENT_VERSION = "([^"]+)"/);
+  return match ? match[1] : null;
+}
+
+function assertBundledPluginVersion(source: string): void {
+  const expected = packageVersion();
+  const actual = bundledPluginVersion(source);
+  if (actual !== expected) {
+    throw new Error(
+      `Bundled ${ASSET_NAME} version ${actual ?? 'unknown'} does not match package version ${expected}. ` +
+      'Run npm run build:plugin:inspector before starting with --auto-install-plugin.',
+    );
+  }
+}
+
 function filesMatch(a: string, b: string): boolean {
-  if (!existsSync(b)) return false;
-  const aBytes = readFileSync(a);
-  const bBytes = readFileSync(b);
-  return aBytes.length === bBytes.length && aBytes.equals(bBytes);
+	if (!existsSync(b)) return false;
+	const aBytes = readFileSync(a);
+	const bBytes = readFileSync(b);
+	return aBytes.length === bBytes.length && aBytes.equals(bBytes);
 }
 
 export async function installBundledPlugin(options: InstallOptions = {}): Promise<void> {
   const log = options.log ?? console.log;
   const warn = options.warn ?? console.warn;
-  const replaceVariant = options.replaceVariant ?? process.argv.includes('--replace-variant');
+  const replaceVariant = options.replaceVariant ?? true;
   const source = bundledAssetPath();
   if (!source) {
     throw new Error(`Bundled ${ASSET_NAME} not found in package`);
   }
+  assertBundledPluginVersion(source);
 
   const pluginsFolder = prepareInstall({ replaceVariant, log, warn });
   const dest = join(pluginsFolder, ASSET_NAME);
@@ -123,10 +149,23 @@ export async function installBundledPlugin(options: InstallOptions = {}): Promis
 }
 
 export async function installPlugin(options: InstallOptions = {}): Promise<void> {
-  const replaceVariant = options.replaceVariant ?? process.argv.includes('--replace-variant');
+  const replaceVariant = options.replaceVariant ?? true;
   const log = options.log ?? console.log;
   const warn = options.warn ?? console.warn;
   const pluginsFolder = prepareInstall({ replaceVariant, log, warn });
+  const bundled = bundledAssetPath();
+
+  if (bundled) {
+    assertBundledPluginVersion(bundled);
+    const dest = join(pluginsFolder, ASSET_NAME);
+    if (filesMatch(bundled, dest)) {
+      log(`${ASSET_NAME} already installed.`);
+      return;
+    }
+    copyFileSync(bundled, dest);
+    log(`Installed bundled ${ASSET_NAME} to ${dest}`);
+    return;
+  }
 
   log('Fetching latest release...');
   const release = await fetchJson(`https://api.github.com/repos/${REPO}/releases/latest`) as {

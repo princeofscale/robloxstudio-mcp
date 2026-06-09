@@ -4,12 +4,11 @@ function getRuntimeLogs(requestData: Record<string, unknown>): unknown {
 	const since = requestData.since as number | undefined;
 	const tail = requestData.tail as number | undefined;
 	const filter = requestData.filter as string | undefined;
-	// Plugin-side peer tag is generic ("edit"|"server"|"client"). The MCP-side
-	// aggregator overrides it with the specific instance role (e.g. "client-1")
-	// during fan-out for target=all, so this value is only authoritative for
-	// the single-peer query path.
-	const peer = RuntimeLogBuffer.detectPeer();
-	return RuntimeLogBuffer.query({ since, tail, filter }, peer);
+	// This is the buffer that captured the LogService event, not necessarily
+	// the script-origin peer. Ordinary playtests share/reflect logs across
+	// edit/server/client LogService buffers.
+	const capturedBy = RuntimeLogBuffer.detectPeer();
+	return RuntimeLogBuffer.query({ since, tail, filter }, capturedBy);
 }
 
 export = { getRuntimeLogs };

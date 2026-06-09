@@ -4,6 +4,7 @@ import MemoryHandlers from "./handlers/MemoryHandlers";
 import SceneAnalysisHandlers from "./handlers/SceneAnalysisHandlers";
 import CaptureHandlers from "./handlers/CaptureHandlers";
 import InputHandlers from "./handlers/InputHandlers";
+import EvalRuntimeHandlers from "./handlers/EvalRuntimeHandlers";
 import LuauExec from "./LuauExec";
 import State from "./State";
 
@@ -87,6 +88,7 @@ interface BrokerEnvelope {
 // cache / etc. lives there) so the server peer alone can't satisfy them.
 const CLIENT_BROKER_ALLOWED_ENDPOINTS = new Set<string>([
 	"/api/execute-luau",
+	"/api/eval-runtime",
 	"/api/get-runtime-logs",
 	"/api/get-memory-breakdown",
 	"/api/get-scene-analysis",
@@ -175,8 +177,8 @@ function handleGetRuntimeLogs(data: Record<string, unknown> | undefined): unknow
 	const since = d.since as number | undefined;
 	const tail = d.tail as number | undefined;
 	const filter = d.filter as string | undefined;
-	// "client" is the generic peer tag; MCP-side aggregator overrides with
-	// the specific role (e.g. "client-1") on target=all fan-out.
+	// "client" is the generic capture tag; MCP-side aggregation overrides it
+	// with the specific role (e.g. "client-1") for capturedBy.
 	return RuntimeLogBuffer.query({ since, tail, filter }, "client");
 }
 
@@ -265,6 +267,9 @@ function setupClientBroker() {
 		}
 		if (payload && payload.endpoint === "/api/execute-luau") {
 			return handleExecuteLuau(payload.data);
+		}
+		if (payload && payload.endpoint === "/api/eval-runtime") {
+			return EvalRuntimeHandlers.evalRuntime(payload.data ?? {});
 		}
 		// Legacy: raw execute-luau payload at the top level.
 		return handleExecuteLuau(payload as Record<string, unknown> | undefined);

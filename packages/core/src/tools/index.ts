@@ -43,301 +43,6 @@ function encodeImageFromRgbaResponse(
   };
 }
 
-// Names must match studio-plugin/src/modules/EvalBridges.ts BRIDGE_NAMES.
-// Hardcoded here because the core package can't import from studio-plugin.
-const SERVER_LOCAL_NAME = '__MCP_ServerEvalLocal';
-const CLIENT_LOCAL_NAME = '__MCP_ClientEvalBridge';
-
-// Wrap a Luau code string in a long bracket with enough '=' signs to never
-// collide with the contained text. Returns a string like `[==[ <code> ]==]`.
-function luaLongQuote(s: string): string {
-  let level = 0;
-  // Find the smallest level not present as a closing bracket inside s.
-  while (s.includes(`]${'='.repeat(level)}]`)) level++;
-  const eq = '='.repeat(level);
-  // Leading newline inside long brackets is consumed by Luau, which is fine.
-  return `[${eq}[\n${s}\n]${eq}]`;
-}
-
-// Build the executeLuau payload that creates a fresh ModuleScript holding
-// the user's eval code, invokes a same-VM BindableFunction with the
-// ModuleScript reference, then JSON-encodes the result. Shared between
-// evalServerRuntime and evalClientRuntime - the only difference is which
-// service hosts the bridge.
-//
-// Wrapper shape (the ModuleScript ALWAYS returns this exact table):
-//   { ok = boolean, value = userReturnOrErrorMessage, output = {strings} }
-//
-// Why: pcall(require, m) in the bridge swallows the real error and reports
-// Roblox's generic "Requested module experienced an error while loading"
-// message. We work around this by wrapping the user code in xpcall INSIDE
-// the IIFE - the ModuleScript always returns successfully, and the real
-// error (with traceback) is preserved inside the returned table.
-//
-// Print/warn capture: a lexically-scoped local print/warn inside the IIFE
-// shadows globals for user code's bare calls, collecting into an output
-// table. The locals also call the real global print/warn so messages still
-// appear in Studio's output console and reach LogService.MessageOut (which
-// powers get_runtime_logs). Captures don't reach into required sub-modules
-// (they have their own env), but those go through the log buffer.
-//
-// IIFE wrap: ModuleScripts must `return` exactly one value. User code like
-// `print("x")` has no return, which would fail with "Module code did not
-// return exactly one value". The IIFE always returns the {ok,value,output}
-// table - a single value. The DOUBLE parens around the call are load-
-// bearing: outer parens adjust the call to exactly one value.
-// Number of lines the IIFE emits BEFORE the user's code substitution. Keep
-// in sync with the wrapper layout below; mirrored as __mcp_LINE_OFFSET so
-// remapped line numbers report user-relative positions (e.g. ":1:" not
-// ":23:") in both runtime tracebacks and parser-error recovery.
-const EVAL_WRAPPER_LINE_OFFSET = 23;
-
-// Count newlines in user code so the wrapper can filter traceback frames
-// whose line numbers fall outside the user-code range (those are wrapper
-// preamble/postamble noise rather than user-actionable frames).
-function evalCountLines(s: string): number {
-  return s.split('\n').length;
-}
-
-function buildModuleScriptInvokeWrapper(opts: {
-  service: 'ServerScriptService' | 'ReplicatedStorage';
-  bridgeName: string;
-  missingError: string;
-  userCode: string;
-}): string {
-  // IIFE wrapper. Mirrors studio-plugin/src/modules/LuauExec.ts (the
-  // execute_luau path) so eval_server_runtime / eval_client_runtime produce
-  // identical output shapes: print/warn capture, custom traceback that
-  // filters wrapper + plugin frames, line-number remap so user errors
-  // report user-relative line numbers, and structured { ok, value, output }
-  // return. Forward-declared __mcp_traceback / __mcp_remap let us define
-  // them AFTER user code without disturbing the prefix offset.
-  const userLines = evalCountLines(opts.userCode);
-  const wrapped = `return ((function()
-\tlocal __mcp_traceback
-\tlocal __mcp_remap
-\tlocal __mcp_LINE_OFFSET = ${EVAL_WRAPPER_LINE_OFFSET}
-\tlocal __mcp_USER_LINES = ${userLines}
-\tlocal __mcp_output = {}
-\tlocal __mcp_real_print = print
-\tlocal __mcp_real_warn = warn
-\tlocal print = function(...)
-\t\t__mcp_real_print(...)
-\t\tlocal args = {...}
-\t\tlocal parts = table.create(#args)
-\t\tfor i, a in ipairs(args) do parts[i] = tostring(a) end
-\t\ttable.insert(__mcp_output, table.concat(parts, "\\t"))
-\tend
-\tlocal warn = function(...)
-\t\t__mcp_real_warn(...)
-\t\tlocal args = {...}
-\t\tlocal parts = table.create(#args)
-\t\tfor i, a in ipairs(args) do parts[i] = tostring(a) end
-\t\ttable.insert(__mcp_output, "[warn] " .. table.concat(parts, "\\t"))
-\tend
-\tlocal function __mcp_run()
-${opts.userCode}
-\tend
-\t__mcp_remap = function(s)
-\t\t-- Two chunk-name formats can reference our payload: the
-\t\t-- ModuleScript path "Workspace.__MCPEvalPayload:N" and the
-\t\t-- loadstring chunk "[string \\"return ((function()...\\"]:N" (if
-\t\t-- the IIFE happens to compile via loadstring). Normalize both to
-\t\t-- "user_code:N" with the offset stripped AND clamped to user
-\t\t-- range, otherwise unclosed constructs report nonsense lines deep
-\t\t-- in the wrapper. Strip the "Workspace." parent prefix too so the
-\t\t-- final output reads "user_code:N" not "Workspace.user_code:N".
-\t\tlocal function __mcp_user_line(payload_n)
-\t\t\tlocal user_n = payload_n - __mcp_LINE_OFFSET
-\t\t\tif user_n < 1 then return "1" end
-\t\t\tif user_n > __mcp_USER_LINES then return tostring(__mcp_USER_LINES) .. " (at end of input)" end
-\t\t\treturn tostring(user_n)
-\t\tend
-\t\ts = string.gsub(s, "Workspace%.__MCPEvalPayload:(%d+)", function(num)
-\t\t\tlocal n = tonumber(num)
-\t\t\tif n then return "user_code:" .. __mcp_user_line(n) end
-\t\t\treturn "user_code:" .. num
-\t\tend)
-\t\ts = string.gsub(s, "__MCPEvalPayload:(%d+)", function(num)
-\t\t\tlocal n = tonumber(num)
-\t\t\tif n then return "user_code:" .. __mcp_user_line(n) end
-\t\t\treturn "user_code:" .. num
-\t\tend)
-\t\ts = string.gsub(s, '%[string "[^"]+"%]:(%d+)', function(num)
-\t\t\tlocal n = tonumber(num)
-\t\t\tif n then return "user_code:" .. __mcp_user_line(n) end
-\t\t\treturn "user_code:" .. num
-\t\tend)
-\t\treturn s
-\tend
-\t__mcp_traceback = function(err)
-\t\tlocal raw = debug.traceback(tostring(err), 2)
-\t\tlocal kept = {}
-\t\tfor line in string.gmatch(raw, "[^\\n]+") do
-\t\t\tlocal num_str = string.match(line, "__MCPEvalPayload:(%d+)")
-\t\t\t\tor string.match(line, '%[string "[^"]+"%]:(%d+)')
-\t\t\tlocal n = num_str and tonumber(num_str)
-\t\t\t-- Strip "in function '__mcp_run'" annotation BEFORE filtering:
-\t\t\t-- user-code frames all carry that suffix (their source is
-\t\t\t-- hosted inside __mcp_run), so a naive "__mcp_" filter would
-\t\t\t-- drop every user frame and leave only the error header.
-\t\t\tline = (string.gsub(line, " in function '__mcp_run'", ""))
-\t\t\tlocal skip = string.find(line, "MCPPlugin", 1, true)
-\t\t\t\tor string.find(line, "__mcp_", 1, true)
-\t\t\t\tor string.find(line, "in function 'xpcall'", 1, true)
-\t\t\t-- Drop wrapper preamble/postamble frames whose line falls
-\t\t\t-- outside the user-code range — those are wrapper internals.
-\t\t\tif n and (n <= __mcp_LINE_OFFSET or n > __mcp_LINE_OFFSET + __mcp_USER_LINES) then
-\t\t\t\tskip = true
-\t\t\tend
-\t\t\tif not skip then
-\t\t\t\ttable.insert(kept, __mcp_remap(line))
-\t\t\tend
-\t\tend
-\t\treturn table.concat(kept, "\\n")
-\tend
-\tlocal ok, errOrValue = xpcall(__mcp_run, __mcp_traceback)
-\treturn { ok = ok, value = errOrValue, output = __mcp_output }
-end)())`;
-  return `
-local HttpService = game:GetService("HttpService")
-local bf = game:GetService("${opts.service}"):FindFirstChild("${opts.bridgeName}")
-if not bf then
-\treturn HttpService:JSONEncode({
-\t\tbridge = "missing",
-\t\terror = ${luaLongQuote(opts.missingError)},
-\t})
-end
--- Outer-scope mirror of the in-IIFE __mcp_remap. Applied to parser errors
--- we pull out of LogService (those never pass through the IIFE) and to
--- the canned engine error string. Same offset as the IIFE's
--- __mcp_LINE_OFFSET; covers both chunk-name formats.
-local __mcp_USER_LINES_OUTER = ${userLines}
-local function __mcp_outer_user_line(payload_n)
-\tlocal user_n = payload_n - ${EVAL_WRAPPER_LINE_OFFSET}
-\tif user_n < 1 then return "1" end
-\tif user_n > __mcp_USER_LINES_OUTER then return tostring(__mcp_USER_LINES_OUTER) .. " (at end of input)" end
-\treturn tostring(user_n)
-end
-local function __mcp_outer_remap(s)
-\ts = string.gsub(s, "Workspace%.__MCPEvalPayload:(%d+)", function(num)
-\t\tlocal n = tonumber(num)
-\t\tif n then return "user_code:" .. __mcp_outer_user_line(n) end
-\t\treturn "user_code:" .. num
-\tend)
-\ts = string.gsub(s, "__MCPEvalPayload:(%d+)", function(num)
-\t\tlocal n = tonumber(num)
-\t\tif n then return "user_code:" .. __mcp_outer_user_line(n) end
-\t\treturn "user_code:" .. num
-\tend)
-\ts = string.gsub(s, '%[string "[^"]+"%]:(%d+)', function(num)
-\t\tlocal n = tonumber(num)
-\t\tif n then return "user_code:" .. __mcp_outer_user_line(n) end
-\t\treturn "user_code:" .. num
-\tend)
-\treturn s
-end
--- JSON-encode tables; otherwise tostring. Cycles or non-serializable
--- values fall back to tostring instead of erroring. This is what makes
--- eval_server_runtime / eval_client_runtime return structured table data
--- (matching execute_luau) instead of "table: 0xaddr".
-local function __mcp_format(v)
-\tif typeof(v) == "table" then
-\t\tlocal ok, encoded = pcall(function() return HttpService:JSONEncode(v) end)
-\t\tif ok then return encoded end
-\tend
-\treturn tostring(v)
-end
-local USER_CODE = ${luaLongQuote(wrapped)}
-local m = Instance.new("ModuleScript")
-m.Name = "__MCPEvalPayload"
-local okSet, setErr = pcall(function() m.Source = USER_CODE end)
-if not okSet then
-\tm:Destroy()
-\treturn HttpService:JSONEncode({ bridge = "ok", ok = false, error = "ModuleScript Source set failed: " .. tostring(setErr) })
-end
-m.Parent = workspace
-local bridgeOk, inner = bf:Invoke(m)
-m:Destroy()
-if not bridgeOk then
-\tlocal errMsg = tostring(inner)
-\t-- pcall(require, payload) collapses parse/compile failures into the
-\t-- canned engine string below. The real parser diagnostic was emitted
-\t-- to LogService just before. Walk GetLogHistory backward for the most
-\t-- recent ERR entry tagged at our payload path and substitute.
-\tif errMsg == "Requested module experienced an error while loading" then
-\t\t-- The parser diagnostic is emitted to LogService on the next
-\t\t-- engine frame, not synchronously with pcall(require). task.wait(0)
-\t\t-- yields too early; 50ms is enough to let the frame complete and
-\t\t-- the message land in GetLogHistory.
-\t\ttask.wait(0.05)
-\t\tlocal LogService = game:GetService("LogService")
-\t\tlocal hist = LogService:GetLogHistory()
-\t\tfor i = #hist, 1, -1 do
-\t\t\tlocal e = hist[i]
-\t\t\tif e.messageType == Enum.MessageType.MessageError and string.sub(e.message, 1, 27) == "Workspace.__MCPEvalPayload:" then
-\t\t\t\terrMsg = e.message
-\t\t\t\tbreak
-\t\t\tend
-\t\tend
-\tend
-\treturn HttpService:JSONEncode({ bridge = "ok", ok = false, error = __mcp_outer_remap(errMsg) })
-end
--- inner is the {ok, value, output} table from our IIFE. Defensive: if it's
--- somehow not a table (caller bypassed the wrapper), fall back to old shape.
-if typeof(inner) ~= "table" then
-\treturn HttpService:JSONEncode({
-\t\tbridge = "ok",
-\t\tok = true,
-\t\tresult = if inner == nil then nil else __mcp_format(inner),
-\t})
-end
-return HttpService:JSONEncode({
-\tbridge = "ok",
-\tok = inner.ok == true,
-\tresult = if inner.ok and inner.value ~= nil then __mcp_format(inner.value) else nil,
-\terror = if not inner.ok then tostring(inner.value) else nil,
-\toutput = inner.output or {},
-})
-`;
-}
-
-// Parse the structured JSON result that eval_*_runtime wrappers return.
-// MetadataHandlers.executeLuau wraps the wrapper's return in
-// `{ success, returnValue: tostring(result), output, message }`. Our
-// wrapper returns a JSON-encoded string, so returnValue is the JSON.
-// Decode it back into a structured object for the MCP response. If
-// anything's off (no returnValue, parse fails, execute_luau itself
-// errored), fall back to relaying the raw response so the caller can see
-// what went wrong rather than a silent empty.
-type BridgeResponse = {
-  bridge?: 'ok' | 'missing';
-  ok?: boolean;
-  result?: string;     // present on success when user code returned a value
-  error?: string;      // present on user-code error: real message + traceback
-  output?: string[];   // captured print/warn lines from inside the IIFE
-};
-type ExecuteLuauResponse = {
-  success?: boolean;
-  returnValue?: unknown;
-  output?: unknown;
-  message?: string;
-  error?: string;
-};
-function parseBridgeResponse(response: unknown): string {
-  const r = response as ExecuteLuauResponse;
-  if (r && typeof r.returnValue === 'string') {
-    try {
-      const parsed = JSON.parse(r.returnValue) as BridgeResponse;
-      return JSON.stringify(parsed);
-    } catch {
-      // returnValue wasn't valid JSON - the wrapper presumably errored before
-      // the JSONEncode return statement. Fall through to raw response.
-    }
-  }
-  return JSON.stringify(response);
-}
-
 function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
@@ -1166,29 +871,12 @@ export class RobloxStudioTools {
     if (!code) {
       throw new Error('Code is required for eval_server_runtime');
     }
-    // The server-peer plugin creates a fresh ModuleScript with the user's
-    // code as Source, then invokes the bridge's BindableFunction (which
-    // lives in the Script VM). The bridge requires the ModuleScript, so
-    // the user code runs in the server VM and shares its require cache
-    // with the running game's Scripts. No loadstring involved - works
-    // regardless of ServerScriptService.LoadStringEnabled.
-    //
-    // Wrapper JSON-encodes the result table because the underlying
-    // execute_luau handler tostring()s any non-string return - JSON-encoding
-    // here keeps structured fields {bridge, ok, result} intact across the
-    // wire. TS side parses returnValue back into a structured object.
-    const wrapper = buildModuleScriptInvokeWrapper({
-      service: 'ServerScriptService',
-      bridgeName: SERVER_LOCAL_NAME,
-      missingError: 'ServerEvalBridge not found. The bridge runs inside the play DM, so a playtest must be running. The bridge installs automatically (including for manually-started playtests); if a playtest is running and you still see this, reconnect the plugin in the edit window so the bridge reinstalls, then start the playtest again.',
-      userCode: code,
-    });
-    const response = await this._callSingle('/api/execute-luau', { code: wrapper }, 'server', instance_id);
+    const response = await this._callSingle('/api/eval-runtime', { code }, 'server', instance_id);
     return {
       content: [
         {
           type: 'text',
-          text: parseBridgeResponse(response)
+          text: JSON.stringify(response)
         }
       ]
     };
@@ -1202,35 +890,25 @@ export class RobloxStudioTools {
     if (!clientTarget.startsWith('client-')) {
       throw new Error(`eval_client_runtime requires target=client-N (got: ${clientTarget})`);
     }
-    // Symmetric to evalServerRuntime: plugin creates ModuleScript locally,
-    // bridge requires it. ModuleScript runs in the LocalScript VM and
-    // shares its require cache with the running game's LocalScripts.
-    const wrapper = buildModuleScriptInvokeWrapper({
-      service: 'ReplicatedStorage',
-      bridgeName: CLIENT_LOCAL_NAME,
-      missingError: 'ClientEvalBridge not found. The bridge runs inside the play DM, so a playtest must be running. The bridge installs automatically (including for manually-started playtests); if a playtest is running and you still see this, reconnect the plugin in the edit window so the bridge reinstalls, then start the playtest again.',
-      userCode: code,
-    });
-    const response = await this._callSingle('/api/execute-luau', { code: wrapper }, clientTarget, instance_id);
+    const response = await this._callSingle('/api/eval-runtime', { code }, clientTarget, instance_id);
     return {
       content: [
         {
           type: 'text',
-          text: parseBridgeResponse(response)
+          text: JSON.stringify(response)
         }
       ]
     };
   }
 
   async getRuntimeLogs(target?: string, since?: number, tail?: number, filter?: string, instance_id?: string) {
-    // Per-peer in-memory log buffer (see studio-plugin RuntimeLogBuffer.ts).
+    // Per-capture in-memory log buffer (see studio-plugin RuntimeLogBuffer.ts).
     // target="all" (default) fans out to every connected instance except
     // edit-proxy (which has no buffer, just polls for stop-playtest), merges
     // by (ts, seq) and dedups same-message-and-level entries captured within
-    // 2 seconds on different peers - that's the LogService cross-peer
-    // reflection window noted in the chrrxs/roblox-mcp-primitives LogBuffer
-    // design (Studio mirrors a server print into both server and client
-    // LogService:GetLogHistory()).
+    // 2 seconds in different buffers. Ordinary Studio playtests reflect logs
+    // across edit/server/client, so capturedBy is not a reliable origin peer;
+    // only StudioTestService multiplayer sessions get a peer attribution.
     const tgt = target ?? 'all';
     const data: Record<string, unknown> = {};
     if (since !== undefined) data.since = since;
@@ -1245,21 +923,27 @@ export class RobloxStudioTools {
     if (!resolved.ok) throw new RoutingFailure(resolved.error);
 
     if (resolved.mode === 'single') {
+      const originPeerReliable = await this._isMultiplayerTestRunning(resolved.targetInstanceId);
       const response = (await this.client.request(
         '/api/get-runtime-logs',
         data,
         resolved.targetInstanceId,
         resolved.targetRole,
-      )) as { peer?: string; entries?: Array<{ peer?: string }> } & Record<string, unknown>;
-      // The plugin-side handler tags entries with the generic "client" peer
-      // because the client DM doesn't know its server-assigned client-N
-      // role. The fanout path overrides this with the resolved role; mirror
-      // that here for the single-peer path so target=client-1 doesn't
-      // return response.peer="client" with entries[].peer="client-1".
-      response.peer = resolved.targetRole;
+      )) as { capturedBy?: string; peer?: string; entries?: Array<{ capturedBy?: string; peer?: string }> } & Record<string, unknown>;
+      // The plugin-side handler can only report generic "client" because the
+      // client DM doesn't know its server-assigned client-N role. Normalize to
+      // the resolved capture buffer, but do not claim script-origin peer unless
+      // the selected place is running a StudioTestService multiplayer test.
+      response.capturedBy = resolved.targetRole;
+      delete response.peer;
+      response.originPeerReliable = originPeerReliable;
+      response.peerAttribution = originPeerReliable ? 'guaranteed_multiplayer' : 'unavailable_shared_logservice';
+      if (originPeerReliable) response.peer = resolved.targetRole;
       if (Array.isArray(response.entries)) {
         for (const e of response.entries) {
-          if (e.peer !== undefined) e.peer = resolved.targetRole;
+          e.capturedBy = resolved.targetRole;
+          delete e.peer;
+          if (originPeerReliable) e.peer = resolved.targetRole;
         }
       }
       return {
@@ -1270,13 +954,16 @@ export class RobloxStudioTools {
     const targets = resolved.targets.filter((t) => t.targetRole !== 'edit-proxy');
 
     type PeerResponse = {
-      peer?: string;
+      capturedBy?: string;
       entries?: Entry[];
       totalDropped?: number;
       nextSince?: number;
       error?: string;
     };
-    type Entry = { seq: number; ts: number; level: string; message: string; peer?: string };
+    type Entry = { seq: number; ts: number; level: string; message: string; capturedBy?: string; peer?: string };
+    const originPeerReliable = targets.length > 0
+      ? await this._isMultiplayerTestRunning(targets[0].targetInstanceId)
+      : false;
 
     const responses = await Promise.allSettled(
       targets.map(async (t) => {
@@ -1286,27 +973,29 @@ export class RobloxStudioTools {
           t.targetInstanceId,
           t.targetRole,
         )) as PeerResponse;
-        return { ...r, peer: t.targetRole };
+        return { ...r, capturedBy: t.targetRole };
       }),
     );
 
     const merged: Entry[] = [];
-    const perPeerNextSince: Record<string, number> = {};
-    const perPeerErrors: Record<string, string> = {};
+    const perCaptureNextSince: Record<string, number> = {};
+    const perCaptureErrors: Record<string, string> = {};
     let totalDropped = 0;
 
     for (const r of responses) {
       if (r.status !== 'fulfilled') continue;
       const v = r.value;
-      const peer = v.peer ?? 'unknown';
+      const capturedBy = v.capturedBy ?? 'unknown';
       if (v.error) {
-        perPeerErrors[peer] = v.error;
+        perCaptureErrors[capturedBy] = v.error;
         continue;
       }
-      if (v.nextSince !== undefined) perPeerNextSince[peer] = v.nextSince;
+      if (v.nextSince !== undefined) perCaptureNextSince[capturedBy] = v.nextSince;
       totalDropped += v.totalDropped ?? 0;
       for (const e of v.entries ?? []) {
-        merged.push({ ...e, peer });
+        const entry = { ...e };
+        delete entry.peer;
+        merged.push({ ...entry, capturedBy });
       }
     }
 
@@ -1324,7 +1013,7 @@ export class RobloxStudioTools {
           d.message === e.message &&
           d.level === e.level &&
           Math.abs(d.ts - e.ts) <= DEDUP_WINDOW &&
-          d.peer !== e.peer,
+          d.capturedBy !== e.capturedBy,
       );
       if (!isDup) deduped.push(e);
     }
@@ -1334,14 +1023,23 @@ export class RobloxStudioTools {
     if (tail !== undefined && deduped.length > tail) {
       final = deduped.slice(deduped.length - tail);
     }
+    const finalEntries = originPeerReliable
+      ? final.map((e) => ({ ...e, peer: e.capturedBy }))
+      : final;
 
     const body: Record<string, unknown> = {
-      entries: final,
+      entries: finalEntries,
       totalDropped,
-      perPeerNextSince,
+      perCaptureNextSince,
+      originPeerReliable,
+      peerAttribution: originPeerReliable ? 'guaranteed_multiplayer' : 'unavailable_shared_logservice',
     };
-    if (Object.keys(perPeerErrors).length > 0) {
-      body.perPeerErrors = perPeerErrors;
+    if (originPeerReliable) {
+      body.perPeerNextSince = perCaptureNextSince;
+    }
+    if (Object.keys(perCaptureErrors).length > 0) {
+      body.perCaptureErrors = perCaptureErrors;
+      if (originPeerReliable) body.perPeerErrors = perCaptureErrors;
     }
 
     return {

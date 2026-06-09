@@ -26,9 +26,11 @@ studio-plugin/MCPInspectorPlugin.rbxmx
 *.swp
 *.swo
 
-# Claude Code config (may contain credentials)
+# Agent configs (may contain credentials)
 .claude.json
 .claude/
+.codex.json
+.codex/
 
 # Development files (keep local only)
 CLAUDE.md

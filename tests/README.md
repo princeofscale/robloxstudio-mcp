@@ -78,9 +78,10 @@ node scripts/studio-lifecycle.mjs wait-connected --variant main --version <expec
 
 | File | What it checks |
 |---|---|
-| `eval-bridge-error-preservation.mjs` | `eval_server_runtime` surfaces the actual user error (not Roblox's generic `"Requested module experienced an error while loading"` wrapper) for explicit `error(...)` and nil-deref cases, plus success-path return values |
-| `execute-luau-error-preservation.mjs` | `execute_luau target=server` surfaces user error messages without leaking plugin-internal paths (e.g. `MCPPlugin.modules.handlers.MetadataHandlers:<line>`), with `target=edit` as the working baseline |
-| `proxy-mode-peer-fanout.mjs` | `get_runtime_logs target=all`, `get_connected_instances`, and `get_memory_breakdown target=all` return non-empty results when invoked from a proxy-mode subprocess (the multi-session path) |
+| `eval-bridge-error-preservation.mjs` | `eval_server_runtime` / `eval_client_runtime` surface actual user errors instead of Roblox's generic `"Requested module experienced an error while loading"` wrapper for explicit errors, nil derefs, parser errors, and nested `require()` module-load failures |
+| `eval-context-routing.mjs` | `execute_luau target=server/client-N` runs in plugin context on the selected peer, while `eval_server_runtime` / `eval_client_runtime` run through the server Script and client LocalScript eval bridges |
+| `execute-luau-error-preservation.mjs` | `execute_luau` surfaces user error messages, parser errors, and nested `require()` module-load failures without leaking plugin-internal paths or Roblox's generic module-load wrapper |
+| `proxy-mode-peer-fanout.mjs` | `get_runtime_logs target=all`, `get_connected_instances`, and `get_memory_breakdown target=all` return non-empty capture/peer data when invoked from a proxy-mode subprocess (the multi-session path) |
 | `execute-luau-output-capture.mjs` | `execute_luau target=server` captures user `print()` and `warn()` calls in the response `output` array, matching the `target=edit` baseline |
 | `multiplayer-test-lifecycle.mjs` | `multiplayer_test_start`, add-player, client-leave, state, and end-test flow against real StudioTestService multiplayer peers |
 

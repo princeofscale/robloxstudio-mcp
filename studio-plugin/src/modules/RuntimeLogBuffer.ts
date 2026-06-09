@@ -1,4 +1,4 @@
-// Per-peer in-memory ring buffer for LogService.MessageOut events.
+// Per-capture in-memory ring buffer for LogService.MessageOut events.
 // Powers the get_runtime_logs MCP tool. Replaces the out-of-tree LogBuffer
 // primitives + StringValue approach from chrrxs/roblox-mcp-primitives.
 //
@@ -8,12 +8,12 @@
 // DataModel. The buffer is bounded by a message-byte budget; oldest entries
 // drop when over budget.
 //
-// Peer-tag caveat: returned entries reflect which peer's plugin CAPTURED the
+// Capture caveat: returned entries reflect which plugin buffer CAPTURED the
 // entry, NOT which peer's script originated the print. LogService reflects
-// prints across peers in Studio Play (a server print ends up in both the
-// server and client LogService:GetLogHistory()) and origin is empirically
-// undetectable from inside MessageOut. The MCP-side aggregator handles
-// cross-peer dedup via a 2s timestamp window.
+// prints across peers in ordinary Studio Play (a server print can appear in
+// server and client LogService:GetLogHistory()). The MCP-side aggregator
+// exposes that as capturedBy, and only promotes it to origin peer in
+// StudioTestService multiplayer sessions where peer attribution is reliable.
 
 import { LogService, RunService } from "@rbxts/services";
 
@@ -88,13 +88,13 @@ interface QueryOptions {
 }
 
 interface QueryResult {
-	peer: string;
+	capturedBy: string;
 	entries: RuntimeLogEntry[];
 	totalDropped: number;
 	nextSince: number;
 }
 
-function query(opts: QueryOptions, peer: string): QueryResult {
+function query(opts: QueryOptions, capturedBy: string): QueryResult {
 	let result = opts.since !== undefined
 		? entries.filter((e) => e.seq > (opts.since as number))
 		: [...entries];
@@ -124,7 +124,7 @@ function query(opts: QueryOptions, peer: string): QueryResult {
 
 	const last = entries.size() > 0 ? entries[entries.size() - 1] : undefined;
 	return {
-		peer,
+		capturedBy,
 		entries: result,
 		totalDropped,
 		nextSince: last ? last.seq : (opts.since ?? 0),

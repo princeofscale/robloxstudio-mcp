@@ -17,6 +17,7 @@ import LogHandlers from "./handlers/LogHandlers";
 import SerializationHandlers from "./handlers/SerializationHandlers";
 import MemoryHandlers from "./handlers/MemoryHandlers";
 import SceneAnalysisHandlers from "./handlers/SceneAnalysisHandlers";
+import EvalRuntimeHandlers from "./handlers/EvalRuntimeHandlers";
 import { Connection, RequestPayload, PollResponse, ReadyResponse } from "../types";
 
 // Per-plugin-load random GUID. Used as the /poll URL param so the server
@@ -129,6 +130,7 @@ const routeMap: Record<string, Handler> = {
 	"/api/get-tagged": MetadataHandlers.getTagged,
 	"/api/get-selection": MetadataHandlers.getSelection,
 	"/api/execute-luau": MetadataHandlers.executeLuau,
+	"/api/eval-runtime": EvalRuntimeHandlers.evalRuntime,
 	"/api/undo": MetadataHandlers.undo,
 	"/api/redo": MetadataHandlers.redo,
 	"/api/bulk-set-attributes": MetadataHandlers.bulkSetAttributes,

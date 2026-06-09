@@ -86,9 +86,10 @@ bf.Archivable = false
 bf.Parent = ServerScriptService
 bf.OnInvoke = function(payload)
 	if typeof(payload) ~= "Instance" or not payload:IsA("ModuleScript") then
-		return false, "payload must be a ModuleScript instance"
+		return { ok = false, value = "payload must be a ModuleScript instance" }
 	end
-	return pcall(require, payload)
+	local ok, value = pcall(require, payload)
+	return { ok = ok, value = value }
 end
 `;
 
@@ -113,9 +114,10 @@ bf.Archivable = false
 bf.Parent = ReplicatedStorage
 bf.OnInvoke = function(payload)
 	if typeof(payload) ~= "Instance" or not payload:IsA("ModuleScript") then
-		return false, "payload must be a ModuleScript instance"
+		return { ok = false, value = "payload must be a ModuleScript instance" }
 	end
-	return pcall(require, payload)
+	local ok, value = pcall(require, payload)
+	return { ok = ok, value = value }
 end
 `;
 
@@ -224,4 +226,3 @@ export function installBridges(): { installed: boolean; error?: string } {
 	}
 	return { installed: true };
 }
-

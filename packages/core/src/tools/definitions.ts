@@ -1148,17 +1148,17 @@ export const TOOL_DEFINITIONS: ToolDefinition[] = [
   {
     name: 'get_runtime_logs',
     category: 'read',
-    description: 'Read the in-memory log buffer captured by the plugin on each peer\'s LogService.MessageOut. Each peer (edit, server, client-N) captures ~64 KB of recent prints; oldest entries drop when over budget. Drop-oldest semantics preserve the recent tail, unlike get_console_output\'s 10 KB drop-newest cap. Caveat: peer tag reflects which peer\'s plugin captured the entry, not which peer\'s script originated it - LogService reflects prints across peers in Studio Play and origin is undetectable from inside MessageOut. target=all (default) merges all peers and dedups same-message-and-level entries captured within 2s across different peers.',
+    description: 'Read the in-memory log buffers captured by Studio plugin peers. Each buffer captures ~64 KB of recent LogService.MessageOut entries; oldest entries drop when over budget. Entries include capturedBy for the plugin buffer that observed the log. In ordinary Studio play/run sessions, LogService reflects logs across edit/server/client, so script-origin peer is not reliable and entries omit peer. In StudioTestService multiplayer sessions only, peer attribution is reliable and entries also include peer. target=all (default) merges buffers and dedups same-message-and-level entries captured within 2s across different buffers.',
     inputSchema: {
       type: 'object',
       properties: {
         target: {
           type: 'string',
-          description: 'Peer to read from: "edit", "server", "client-N", or "all" (default). "all" merges all peers and dedups cross-peer reflections within a 2s window.'
+          description: 'Capture buffer to read from: "edit", "server", "client-N", or "all" (default). "all" merges buffers and dedups cross-buffer reflections within a 2s window.'
         },
         since: {
           type: 'number',
-          description: 'Return only entries with seq > since. Pass back the previous response\'s nextSince (single-peer) or perPeerNextSince entry (target=all) for incremental polling.'
+          description: 'Return only entries with seq > since. Pass back the previous response\'s nextSince (single target) or perCaptureNextSince entry (target=all) for incremental polling.'
         },
         tail: {
           type: 'number',

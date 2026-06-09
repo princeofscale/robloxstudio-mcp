@@ -98,8 +98,8 @@ export function handleVariantConflict({
 
   warn(
     `\n[install-plugin] WARNING: ${otherAssetName} is already present in ${pluginsFolder}.\n` +
-      `Only one MCP plugin variant should be present. If both variants are in the Studio ` +
-      `Plugins folder, Studio loads both and runtime routing can become unpredictable.\n` +
-      `Re-run with --replace-variant to remove ${otherAssetName}, or delete it manually.\n`,
-  );
-}
+	      `Only one MCP plugin variant should be present. If both variants are in the Studio ` +
+	      `Plugins folder, Studio loads both and runtime routing can become unpredictable.\n` +
+	      `Delete ${otherAssetName} manually or use the default CLI installer behavior to replace it.\n`,
+	  );
+	}

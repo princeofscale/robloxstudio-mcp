@@ -295,7 +295,7 @@ async function main() {
     await closeAllStudio();
     client = new McpClient('regular-tooling-primary', {
       command: 'node',
-      args: [DIST, '--auto-install-plugin', '--replace-variant'],
+      args: [DIST, '--auto-install-plugin'],
       env: SERVER_ENV,
       startupTimeoutMs: 60000,
     });

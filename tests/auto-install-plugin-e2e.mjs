@@ -262,7 +262,6 @@ function commandFor(artifact, { autoInstall }) {
   const extra = [];
   if (autoInstall) {
     extra.push('--auto-install-plugin');
-    if (artifact.variant === 'inspector') extra.push('--replace-variant');
   }
   if (artifact.source === 'latest') {
     return {
