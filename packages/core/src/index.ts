@@ -12,6 +12,8 @@ export {
 export type { ToolDefinition, ToolCategory } from './tools/definitions.js';
 export { OpenCloudClient } from './opencloud-client.js';
 export { getPluginsFolder, isWSL, handleVariantConflict } from './install-plugin-helpers.js';
+export { runDoctor, collectDoctorChecks, formatDoctorReport, checkNodeVersion } from './doctor.js';
+export type { DoctorCheck, DoctorStatus, DoctorOptions } from './doctor.js';
 export { RobloxCookieClient } from './roblox-cookie-client.js';
 export type {
   OpenCloudConfig,

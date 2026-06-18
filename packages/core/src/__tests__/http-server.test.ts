@@ -41,6 +41,21 @@ describe('HTTP Server', () => {
     });
   });
 
+  describe('Dashboard', () => {
+    test('serves the dashboard HTML page', async () => {
+      const response = await request(app).get('/dashboard').expect(200);
+      expect(response.text).toContain('robloxstudio-mcp dashboard');
+      expect(response.headers['content-type']).toMatch(/html/);
+    });
+
+    test('serves live dashboard data including operation history', async () => {
+      const response = await request(app).get('/dashboard/data').expect(200);
+      expect(response.body).toMatchObject({ pluginConnected: false, instanceCount: 0 });
+      expect(typeof response.body.operations).toBe('string');
+      expect(response.body.operations).toMatch(/history/i);
+    });
+  });
+
   describe('Plugin Connection Management', () => {
     test('plugin ready notification', async () => {
       const response = await request(app).post('/ready').send(READY_BODY).expect(200);

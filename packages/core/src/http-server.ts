@@ -38,8 +38,8 @@ export const TOOL_HANDLERS: Record<string, ToolHandler> = {
   mass_set_property: (tools, body) => tools.massSetProperty(body.paths, body.propertyName, body.propertyValue, body.instance_id),
   mass_get_property: (tools, body) => tools.massGetProperty(body.paths, body.propertyName, body.instance_id),
   create_object: (tools, body) => tools.createObject(body.className, body.parent, body.name, body.properties, body.instance_id),
-  mass_create_objects: (tools, body) => tools.massCreateObjects(body.objects, body.instance_id),
-  delete_object: (tools, body) => tools.deleteObject(body.instancePath, body.instance_id),
+  mass_create_objects: (tools, body) => tools.massCreateObjects(body.objects, body.instance_id, { dryRun: body.dryRun, confirm: body.confirm }),
+  delete_object: (tools, body) => tools.deleteObject(body.instancePath, body.instance_id, { dryRun: body.dryRun, confirm: body.confirm }),
   smart_duplicate: (tools, body) => tools.smartDuplicate(body.instancePath, body.count, body.options, body.instance_id),
   mass_duplicate: (tools, body) => tools.massDuplicate(body.duplications, body.instance_id),
   grep_scripts: (tools, body) => tools.grepScripts(body.pattern, {
@@ -53,7 +53,10 @@ export const TOOL_HANDLERS: Record<string, ToolHandler> = {
     classFilter: body.classFilter,
   }, body.instance_id),
   get_script_source: (tools, body) => tools.getScriptSource(body.instancePath, body.startLine, body.endLine, body.instance_id),
-  set_script_source: (tools, body) => tools.setScriptSource(body.instancePath, body.source, body.instance_id),
+  set_script_source: (tools, body) => tools.setScriptSource(body.instancePath, body.source, body.instance_id, { dryRun: body.dryRun, confirm: body.confirm }),
+  restore_script_backup: (tools, body) => tools.restoreScriptBackup(body.instancePath, body.instance_id),
+  list_script_backups: (tools) => tools.listScriptBackups(),
+  get_operation_history: (tools, body) => tools.getOperationHistory(body.limit),
   edit_script_lines: (tools, body) => tools.editScriptLines(body.instancePath, body.old_string, body.new_string, body.startLine, body.instance_id),
   insert_script_lines: (tools, body) => tools.insertScriptLines(body.instancePath, body.afterLine, body.newContent, body.instance_id),
   delete_script_lines: (tools, body) => tools.deleteScriptLines(body.instancePath, body.startLine, body.endLine, body.instance_id),
@@ -65,7 +68,7 @@ export const TOOL_HANDLERS: Record<string, ToolHandler> = {
   remove_tag: (tools, body) => tools.removeTag(body.instancePath, body.tagName, body.instance_id),
   get_tagged: (tools, body) => tools.getTagged(body.tagName, body.instance_id),
   get_selection: (tools, body) => tools.getSelection(body.instance_id),
-  execute_luau: (tools, body) => tools.executeLuau(body.code, body.target, body.instance_id),
+  execute_luau: (tools, body) => tools.executeLuau(body.code, body.target, body.instance_id, { dryRun: body.dryRun, confirm: body.confirm }),
   eval_server_runtime: (tools, body) => tools.evalServerRuntime(body.code, body.instance_id),
   eval_client_runtime: (tools, body) => tools.evalClientRuntime(body.code, body.target, body.instance_id),
   set_network_profile: (tools, body) => tools.setNetworkProfile(body.profile, body.target, body.overrides, body.instance_id),
@@ -121,7 +124,112 @@ export const TOOL_HANDLERS: Record<string, ToolHandler> = {
     dryRun: body.dryRun,
     maxReplacements: body.maxReplacements,
   }, body.instance_id),
+
+  // UI builder tools — body doubles as the options object.
+  ui_create_screen_gui: (tools, body) => tools.uiCreateScreenGui(body, body.instance_id),
+  ui_create_frame: (tools, body) => tools.uiCreateFrame(body, body.instance_id),
+  ui_create_text_label: (tools, body) => tools.uiCreateTextLabel(body, body.instance_id),
+  ui_create_text_button: (tools, body) => tools.uiCreateTextButton(body, body.instance_id),
+  ui_create_image_label: (tools, body) => tools.uiCreateImageLabel(body, body.instance_id),
+  ui_create_image_button: (tools, body) => tools.uiCreateImageButton(body, body.instance_id),
+  ui_apply_layout: (tools, body) => tools.uiApplyLayout(body, body.instance_id),
+  ui_make_mobile_friendly: (tools, body) => tools.uiMakeMobileFriendly(body.targetPath, body.instance_id),
+
+  // Environment tools.
+  environment_set_time_of_day: (tools, body) => tools.environmentSetTimeOfDay(body.time, body.instance_id),
+  environment_set_lighting_preset: (tools, body) => tools.environmentSetLightingPreset(body.preset, body.instance_id),
+  environment_set_atmosphere: (tools, body) => tools.environmentSetAtmosphere(body, body.instance_id),
+  environment_set_sky: (tools, body) => tools.environmentSetSky(body, body.instance_id),
+  environment_create_day_night_cycle_script: (tools, body) => tools.environmentCreateDayNightCycleScript(body, body.instance_id),
+
+  // Terrain tools — body doubles as the options object (incl. dryRun/confirm).
+  terrain_generate_baseplate: (tools, body) => tools.terrainGenerateBaseplate(body, body.instance_id),
+  terrain_generate_island: (tools, body) => tools.terrainGenerateIsland(body, body.instance_id),
+  terrain_generate_mountains: (tools, body) => tools.terrainGenerateMountains(body, body.instance_id),
+  terrain_generate_water: (tools, body) => tools.terrainGenerateWater(body, body.instance_id),
+  terrain_paint_material: (tools, body) => tools.terrainPaintMaterial(body, body.instance_id),
+  terrain_clear_region: (tools, body) => tools.terrainClearRegion(body, body.instance_id),
+
+  // Game templates — body doubles as the options object.
+  template_create_obby_game: (tools, body) => tools.templateCreateObbyGame(body, body.instance_id),
+  template_create_simulator_game: (tools, body) => tools.templateCreateSimulatorGame(body, body.instance_id),
+  template_create_tycoon_game: (tools, body) => tools.templateCreateTycoonGame(body, body.instance_id),
+  template_create_round_game: (tools, body) => tools.templateCreateRoundGame(body, body.instance_id),
+
+  // Local sync.
+  sync_pull: (tools, body) => tools.syncPull(body.syncDir, body.instance_id),
+  sync_status: (tools, body) => tools.syncStatus(body.syncDir, body.instance_id),
+  sync_push: (tools, body) => tools.syncPush(body.syncDir, body.instance_id, { dryRun: body.dryRun, confirm: body.confirm }),
+
+  // Free marketplace (no Open Cloud key).
+  marketplace_search: (tools, body) => tools.marketplaceSearch(body.keyword, body.category, body.limit, body.sortType),
+  marketplace_search_and_insert: (tools, body) => tools.marketplaceSearchAndInsert(body.keyword, body.category, body.parentPath, body.position, body.instance_id),
 };
+
+// Self-contained diagnostics page (no external assets) served at /dashboard.
+const DASHBOARD_HTML = `<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>robloxstudio-mcp dashboard</title>
+<style>
+  body { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; background: #14161c; color: #e6e6ea; margin: 0; padding: 24px; }
+  h1 { font-size: 18px; margin: 0 0 16px; }
+  .row { display: flex; gap: 12px; flex-wrap: wrap; margin-bottom: 16px; }
+  .card { background: #1d2029; border: 1px solid #2a2e3a; border-radius: 8px; padding: 12px 16px; min-width: 160px; }
+  .label { font-size: 11px; text-transform: uppercase; color: #8a8f9c; }
+  .value { font-size: 18px; margin-top: 4px; }
+  .dot { display: inline-block; width: 10px; height: 10px; border-radius: 50%; margin-right: 6px; vertical-align: middle; }
+  .ok { background: #4ade80; } .bad { background: #f87171; }
+  button { background: #2a2e3a; color: #e6e6ea; border: 1px solid #3a3f4d; border-radius: 6px; padding: 8px 14px; cursor: pointer; font: inherit; }
+  button:hover { background: #343a48; }
+  pre { background: #1d2029; border: 1px solid #2a2e3a; border-radius: 8px; padding: 12px; overflow: auto; max-height: 50vh; white-space: pre-wrap; }
+</style>
+</head>
+<body>
+<h1>robloxstudio-mcp dashboard</h1>
+<div class="row">
+  <div class="card"><div class="label">Studio</div><div class="value" id="conn"><span class="dot bad"></span>—</div></div>
+  <div class="card"><div class="label">Places connected</div><div class="value" id="count">—</div></div>
+  <div class="card"><div class="label">Server version</div><div class="value" id="ver">—</div></div>
+  <div class="card"><div class="label">Pending requests</div><div class="value" id="pending">—</div></div>
+</div>
+<div class="row">
+  <button onclick="refresh()">Reconnect / Refresh</button>
+  <button onclick="document.getElementById('ops').textContent=''">Clear logs</button>
+  <button onclick="exportDiag()">Export diagnostics</button>
+</div>
+<div class="label">Recent operations</div>
+<pre id="ops">loading…</pre>
+<script>
+let last = {};
+async function refresh() {
+  try {
+    const r = await fetch('/dashboard/data');
+    const d = await r.json();
+    last = d;
+    document.getElementById('conn').innerHTML = '<span class="dot ' + (d.pluginConnected ? 'ok' : 'bad') + '"></span>' + (d.pluginConnected ? 'Connected' : 'Disconnected');
+    document.getElementById('count').textContent = d.instanceCount;
+    document.getElementById('ver').textContent = d.serverVersion || '—';
+    document.getElementById('pending').textContent = d.pendingRequests;
+    document.getElementById('ops').textContent = d.operations || 'none';
+  } catch (e) {
+    document.getElementById('ops').textContent = 'Failed to reach server: ' + e;
+  }
+}
+function exportDiag() {
+  const blob = new Blob([JSON.stringify(last, null, 2)], { type: 'application/json' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = 'robloxstudio-mcp-diagnostics.json';
+  a.click();
+}
+refresh();
+setInterval(refresh, 3000);
+</script>
+</body>
+</html>`;
 
 export function createHttpServer(tools: RobloxStudioTools, bridge: BridgeService, allowedTools?: Set<string>, serverConfig?: StreamableHttpConfig) {
   const app = express();
@@ -300,6 +408,36 @@ export function createHttpServer(tools: RobloxStudioTools, bridge: BridgeService
     });
   });
 
+
+  // Minimal diagnostics dashboard. /dashboard serves a static page that polls
+  // /dashboard/data for live connection state and recent safety-layer ops.
+  app.get('/dashboard/data', async (_req, res) => {
+    const instances = bridge.getInstances().map(toPublic);
+    let operations = 'unavailable';
+    try {
+      const result = await tools.getOperationHistory(25);
+      const node = result.content.find((c) => c.type === 'text') as { text?: string } | undefined;
+      operations = node?.text ?? 'none';
+    } catch {
+      /* getOperationHistory is local and shouldn't throw, but never break the dashboard */
+    }
+    res.json({
+      serverVersion: serverConfig?.version,
+      pluginConnected: instances.length > 0,
+      instanceCount: instances.length,
+      instances,
+      versionMismatch: instances.some((inst) => inst.versionMismatch),
+      mcpServerActive: isMCPServerActive(),
+      uptime: mcpServerActive ? Date.now() - mcpServerStartTime : 0,
+      pendingRequests: bridge.getPendingRequestCount(),
+      operations,
+      generatedAt: new Date().toISOString(),
+    });
+  });
+
+  app.get('/dashboard', (_req, res) => {
+    res.type('html').send(DASHBOARD_HTML);
+  });
 
   app.get('/instances', (req, res) => {
     // Includes the internal pluginSessionId so proxy-mode subprocesses can

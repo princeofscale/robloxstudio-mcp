@@ -1,5 +1,55 @@
 import { StudioHttpClient } from './studio-client.js';
 import { BridgeService, RoutingFailure } from '../bridge-service.js';
+import { SafetyManager, OperationKind } from '../safety/safety-manager.js';
+import {
+  buildScreenGuiLuau,
+  buildGuiObjectLuau,
+  buildApplyLayoutLuau,
+  buildMobileFriendlyLuau,
+  GuiObjectClass,
+  ScreenGuiOptions,
+  GuiObjectOptions,
+  LayoutOptions,
+} from '../builders/ui-builders.js';
+import {
+  buildSetTimeOfDayLuau,
+  buildLightingPresetLuau,
+  buildAtmosphereLuau,
+  buildSkyLuau,
+  buildDayNightCycleScriptLuau,
+  AtmospherePreset,
+  SkyOptions,
+  DayNightCycleOptions,
+} from '../builders/environment-builders.js';
+import {
+  buildBaseplateLuau,
+  buildIslandLuau,
+  buildMountainsLuau,
+  buildWaterLuau,
+  buildPaintMaterialLuau,
+  buildClearRegionLuau,
+  boxVolume,
+  regionVolume,
+  BaseplateOptions,
+  IslandOptions,
+  MountainsOptions,
+  WaterOptions,
+  PaintMaterialOptions,
+  ClearRegionOptions,
+} from '../builders/terrain-builders.js';
+import {
+  buildObbyTemplateLuau,
+  buildSimulatorTemplateLuau,
+  buildTycoonTemplateLuau,
+  buildRoundTemplateLuau,
+  ObbyTemplateOptions,
+  SimulatorTemplateOptions,
+  TycoonTemplateOptions,
+  RoundTemplateOptions,
+} from '../builders/template-builders.js';
+import { SyncManager, ScriptClassName } from '../sync/sync-manager.js';
+import { buildDumpScriptsLuau } from '../sync/sync-luau.js';
+import { MarketplaceClient } from '../marketplace-client.js';
 import { runBuildExecutor } from './build-executor.js';
 import { OpenCloudClient } from '../opencloud-client.js';
 import { RobloxCookieClient } from '../roblox-cookie-client.js';
@@ -52,6 +102,17 @@ type DeviceSimulatorMatrixEntry = DeviceSimulatorSettings & {
 };
 
 type SimulationInclude = 'network' | 'deviceSimulator' | 'both';
+
+// Per-call safety controls threaded into destructive/bulk tools. Both are
+// optional and additive: omitting them preserves the original behavior for any
+// non-gated operation, while gated ones (protected deletes, large bulk changes,
+// dangerous Luau) stay blocked until `confirm: true` is supplied.
+type SafetyOptions = {
+  /** Preview the operation without mutating anything. */
+  dryRun?: boolean;
+  /** Explicitly approve an operation the safety layer would otherwise gate. */
+  confirm?: boolean;
+};
 
 const MAX_INLINE_IMAGE_BYTES = 6_000_000;
 const MAX_DEVICE_MATRIX_ENTRIES = 6;
@@ -501,12 +562,427 @@ export class RobloxStudioTools {
   private bridge: BridgeService;
   private openCloudClient: OpenCloudClient;
   private cookieClient: RobloxCookieClient;
+  private safety: SafetyManager;
+  private sync: SyncManager;
+  private marketplace: MarketplaceClient;
 
   constructor(bridge: BridgeService) {
     this.client = new StudioHttpClient(bridge);
     this.bridge = bridge;
     this.openCloudClient = new OpenCloudClient();
     this.cookieClient = new RobloxCookieClient();
+    this.safety = new SafetyManager();
+    this.sync = new SyncManager();
+    this.marketplace = new MarketplaceClient();
+  }
+
+  // === Safety layer ===
+  // A single guard every destructive/bulk tool consults before touching the
+  // bridge. It returns a ready-to-send MCP result when an operation must be
+  // gated (confirmation), blocked (hard limit), or previewed (dry-run); it
+  // returns null when the operation is cleared to proceed. Keeping the policy
+  // here means each tool opts in with one line and shares identical behavior.
+
+  private _safetyGate(
+    kind: OperationKind,
+    detail: string,
+    input: { path?: string; count?: number; scriptSize?: number; code?: string },
+    options?: SafetyOptions,
+  ): { content: ToolContent[] } | null {
+    const assessment = this.safety.assess({
+      kind,
+      ...input,
+      dryRun: options?.dryRun,
+      confirmed: options?.confirm,
+    });
+    if (assessment.dryRun || !assessment.allowed) {
+      return this._formatSafety(kind, detail, assessment);
+    }
+    return null;
+  }
+
+  private _formatSafety(
+    kind: OperationKind,
+    detail: string,
+    assessment: ReturnType<SafetyManager['assess']>,
+  ): { content: ToolContent[] } {
+    const lines: string[] = [];
+    if (assessment.dryRun) {
+      lines.push(`Dry-run preview for ${kind}: ${detail}. No changes were made.`);
+    } else if (assessment.blocked) {
+      lines.push(`Operation blocked: ${kind} — ${detail}.`);
+    } else {
+      lines.push(`Confirmation required for ${kind}: ${detail}.`);
+    }
+    if (assessment.reasons.length) lines.push('Reasons:\n- ' + assessment.reasons.join('\n- '));
+    if (assessment.warnings.length) lines.push('Warnings:\n- ' + assessment.warnings.join('\n- '));
+    if (!assessment.dryRun && assessment.requiresConfirmation && !assessment.blocked) {
+      lines.push('To proceed, re-run this tool with confirm: true.');
+    }
+    return { content: [{ type: 'text', text: lines.join('\n\n') }] };
+  }
+
+  async getOperationHistory(limit?: number) {
+    const entries = this.safety.getHistory().slice(0, limit ?? 50);
+    const header = `Operation history (${entries.length} entries):`;
+    const body = entries.length === 0
+      ? 'No operations recorded yet.'
+      : entries
+          .map((e) => `- [${new Date(e.timestamp).toISOString()}] ${e.kind}: ${e.summary}`)
+          .join('\n');
+    return { content: [{ type: 'text', text: `${header}\n${body}` }] as ToolContent[] };
+  }
+
+  async listScriptBackups() {
+    const backups = this.safety.listBackups();
+    const header = `Script backups (${backups.length}):`;
+    const body = backups.length === 0
+      ? 'No script backups captured yet.'
+      : backups
+          .map((b) => `- ${b.path} (backed up ${new Date(b.timestamp).toISOString()}, ${b.source.length} chars${b.previous !== undefined ? ', 1 prior version available' : ''})`)
+          .join('\n');
+    return { content: [{ type: 'text', text: `${header}\n${body}` }] as ToolContent[] };
+  }
+
+  async restoreScriptBackup(instancePath: string, instance_id?: string) {
+    const backup = this.safety.getBackup(instancePath);
+    if (!backup) {
+      return { content: [{ type: 'text', text: `No backup found for "${instancePath}". Use list_script_backups to see what is available.` }] as ToolContent[] };
+    }
+    const response = await this._callSingle('/api/set-script-source', { instancePath, source: backup.source }, undefined, instance_id);
+    this.safety.recordOperation({ kind: 'restore_script', summary: `restored ${instancePath} (${backup.source.length} chars)` });
+    return { content: [{ type: 'text', text: JSON.stringify({ restored: instancePath, bytes: backup.source.length, response }) }] as ToolContent[] };
+  }
+
+  // === Generated-Luau builders (UI / environment / terrain) ===
+  // These tools compose typed parameters into Luau that runs in the plugin's
+  // edit context. Centralizing execution here means the safety layer, history,
+  // and instance routing all apply uniformly without touching the plugin.
+
+  private async _runGeneratedLuau(code: string, instance_id?: string) {
+    const response = await this._callSingle('/api/execute-luau', { code }, 'edit', instance_id);
+    return { content: [{ type: 'text', text: JSON.stringify(response) }] as ToolContent[] };
+  }
+
+  // --- UI builder tools ---
+
+  async uiCreateScreenGui(options: ScreenGuiOptions, instance_id?: string) {
+    if (!options?.name) throw new Error('name is required for ui_create_screen_gui');
+    const result = await this._runGeneratedLuau(buildScreenGuiLuau(options), instance_id);
+    this.safety.recordOperation({ kind: 'ui_create', summary: `ScreenGui ${options.name}` });
+    return result;
+  }
+
+  private async _uiCreate(className: GuiObjectClass, options: GuiObjectOptions, instance_id?: string) {
+    if (!options?.parentPath) throw new Error(`parentPath is required for ui_create_${className.toLowerCase()}`);
+    const result = await this._runGeneratedLuau(buildGuiObjectLuau(className, options), instance_id);
+    this.safety.recordOperation({ kind: 'ui_create', summary: `${className} under ${options.parentPath}` });
+    return result;
+  }
+
+  async uiCreateFrame(options: GuiObjectOptions, instance_id?: string) { return this._uiCreate('Frame', options, instance_id); }
+  async uiCreateTextLabel(options: GuiObjectOptions, instance_id?: string) { return this._uiCreate('TextLabel', options, instance_id); }
+  async uiCreateTextButton(options: GuiObjectOptions, instance_id?: string) { return this._uiCreate('TextButton', options, instance_id); }
+  async uiCreateImageLabel(options: GuiObjectOptions, instance_id?: string) { return this._uiCreate('ImageLabel', options, instance_id); }
+  async uiCreateImageButton(options: GuiObjectOptions, instance_id?: string) { return this._uiCreate('ImageButton', options, instance_id); }
+
+  async uiApplyLayout(options: LayoutOptions & { targetPath: string }, instance_id?: string) {
+    if (!options?.targetPath) throw new Error('targetPath is required for ui_apply_layout');
+    return this._runGeneratedLuau(buildApplyLayoutLuau(options.targetPath, options), instance_id);
+  }
+
+  async uiMakeMobileFriendly(targetPath: string, instance_id?: string) {
+    if (!targetPath) throw new Error('targetPath is required for ui_make_mobile_friendly');
+    return this._runGeneratedLuau(buildMobileFriendlyLuau(targetPath), instance_id);
+  }
+
+  // --- Environment tools ---
+
+  async environmentSetTimeOfDay(time: number | string, instance_id?: string) {
+    if (time === undefined || time === null) throw new Error('time is required for environment_set_time_of_day');
+    return this._runGeneratedLuau(buildSetTimeOfDayLuau(time), instance_id);
+  }
+
+  async environmentSetLightingPreset(preset: string, instance_id?: string) {
+    // buildLightingPresetLuau throws on an unknown preset; surface that as a
+    // clean tool result instead of a transport error.
+    let code: string;
+    try {
+      code = buildLightingPresetLuau(preset);
+    } catch (error) {
+      return { content: [{ type: 'text', text: errorMessage(error) }] as ToolContent[] };
+    }
+    const result = await this._runGeneratedLuau(code, instance_id);
+    this.safety.recordOperation({ kind: 'environment', summary: `lighting preset ${preset}` });
+    return result;
+  }
+
+  async environmentSetAtmosphere(options: AtmospherePreset, instance_id?: string) {
+    return this._runGeneratedLuau(buildAtmosphereLuau(options ?? {}), instance_id);
+  }
+
+  async environmentSetSky(options: SkyOptions, instance_id?: string) {
+    return this._runGeneratedLuau(buildSkyLuau(options ?? {}), instance_id);
+  }
+
+  async environmentCreateDayNightCycleScript(options: DayNightCycleOptions, instance_id?: string) {
+    const result = await this._runGeneratedLuau(buildDayNightCycleScriptLuau(options ?? {}), instance_id);
+    this.safety.recordOperation({ kind: 'environment', summary: `day-night cycle script (${options?.minutesPerDay ?? 10} min/day)` });
+    return result;
+  }
+
+  // --- Terrain tools ---
+
+  private _terrainGate(volume: number, detail: string, options?: SafetyOptions): { content: ToolContent[] } | null {
+    return this._safetyGate('terrain_fill', `${detail} (~${Math.round(volume)} studs³)`, { count: volume }, options);
+  }
+
+  async terrainGenerateBaseplate(options: BaseplateOptions & SafetyOptions, instance_id?: string) {
+    if (!options?.size) throw new Error('size is required for terrain_generate_baseplate');
+    const gated = this._terrainGate(boxVolume(options.size), 'baseplate', options);
+    if (gated) return gated;
+    const result = await this._runGeneratedLuau(buildBaseplateLuau(options), instance_id);
+    this.safety.recordOperation({ kind: 'terrain', summary: `baseplate ${options.size.join('x')}` });
+    return result;
+  }
+
+  async terrainGenerateIsland(options: IslandOptions & SafetyOptions, instance_id?: string) {
+    if (!options?.radius) throw new Error('radius is required for terrain_generate_island');
+    const volume = (4 / 3) * Math.PI * Math.pow(options.radius, 3);
+    const gated = this._terrainGate(volume, 'island', options);
+    if (gated) return gated;
+    const result = await this._runGeneratedLuau(buildIslandLuau(options), instance_id);
+    this.safety.recordOperation({ kind: 'terrain', summary: `island r=${options.radius}` });
+    return result;
+  }
+
+  async terrainGenerateMountains(options: MountainsOptions & SafetyOptions, instance_id?: string) {
+    if (!options?.extent || options.maxHeight === undefined) throw new Error('extent and maxHeight are required for terrain_generate_mountains');
+    const volume = Math.abs(options.extent[0]) * Math.abs(options.extent[1]) * Math.abs(options.maxHeight);
+    const gated = this._terrainGate(volume, 'mountains', options);
+    if (gated) return gated;
+    const result = await this._runGeneratedLuau(buildMountainsLuau(options), instance_id);
+    this.safety.recordOperation({ kind: 'terrain', summary: `mountains ${options.extent.join('x')}` });
+    return result;
+  }
+
+  async terrainGenerateWater(options: WaterOptions & SafetyOptions, instance_id?: string) {
+    if (!options?.size) throw new Error('size is required for terrain_generate_water');
+    const gated = this._terrainGate(boxVolume(options.size), 'water', options);
+    if (gated) return gated;
+    const result = await this._runGeneratedLuau(buildWaterLuau(options), instance_id);
+    this.safety.recordOperation({ kind: 'terrain', summary: `water ${options.size.join('x')}` });
+    return result;
+  }
+
+  async terrainPaintMaterial(options: PaintMaterialOptions & SafetyOptions, instance_id?: string) {
+    if (!options?.min || !options?.max || !options?.material) throw new Error('min, max, and material are required for terrain_paint_material');
+    const gated = this._terrainGate(regionVolume(options.min, options.max), `paint ${options.material}`, options);
+    if (gated) return gated;
+    const result = await this._runGeneratedLuau(buildPaintMaterialLuau(options), instance_id);
+    this.safety.recordOperation({ kind: 'terrain', summary: `paint ${options.material}` });
+    return result;
+  }
+
+  async terrainClearRegion(options: ClearRegionOptions & SafetyOptions, instance_id?: string) {
+    if (!options?.min || !options?.max) throw new Error('min and max are required for terrain_clear_region');
+    const gated = this._safetyGate('terrain_clear', `clear region (~${Math.round(regionVolume(options.min, options.max))} studs³)`, { count: regionVolume(options.min, options.max) }, options);
+    if (gated) return gated;
+    const result = await this._runGeneratedLuau(buildClearRegionLuau(options), instance_id);
+    this.safety.recordOperation({ kind: 'terrain', summary: `cleared region` });
+    return result;
+  }
+
+  // --- Game-template tools ---
+  // Each scaffolds a complete starter game (geometry, services, leaderstats,
+  // gameplay scripts). Generation is idempotent, so re-running refreshes the
+  // template in place rather than duplicating it.
+
+  async templateCreateObbyGame(options: ObbyTemplateOptions, instance_id?: string) {
+    const result = await this._runGeneratedLuau(buildObbyTemplateLuau(options ?? {}), instance_id);
+    this.safety.recordOperation({ kind: 'template', summary: `obby game (${options?.checkpoints ?? 5} checkpoints)` });
+    return result;
+  }
+
+  async templateCreateSimulatorGame(options: SimulatorTemplateOptions, instance_id?: string) {
+    const result = await this._runGeneratedLuau(buildSimulatorTemplateLuau(options ?? {}), instance_id);
+    this.safety.recordOperation({ kind: 'template', summary: `simulator game (${options?.currencyName ?? 'Coins'})` });
+    return result;
+  }
+
+  async templateCreateTycoonGame(options: TycoonTemplateOptions, instance_id?: string) {
+    const result = await this._runGeneratedLuau(buildTycoonTemplateLuau(options ?? {}), instance_id);
+    this.safety.recordOperation({ kind: 'template', summary: `tycoon game` });
+    return result;
+  }
+
+  async templateCreateRoundGame(options: RoundTemplateOptions, instance_id?: string) {
+    const result = await this._runGeneratedLuau(buildRoundTemplateLuau(options ?? {}), instance_id);
+    this.safety.recordOperation({ kind: 'template', summary: `round game (${options?.roundSeconds ?? 90}s)` });
+    return result;
+  }
+
+  // === Local sync (Studio <-> files) ===
+  // Scripts mirror to suffixed Lua files (.server/.client/.module.lua) under a
+  // sync directory. A manifest (.robloxsync.json) records the source captured at
+  // the last sync so push/status can do three-way conflict detection rather than
+  // clobbering. SyncManager owns the (tested) path/conflict logic; this layer
+  // owns filesystem and Studio I/O.
+
+  private _syncManifestPath(dir: string): string {
+    return path.join(dir, '.robloxsync.json');
+  }
+
+  private _readManifest(dir: string): Record<string, string> {
+    try {
+      const raw = fs.readFileSync(this._syncManifestPath(dir), 'utf8');
+      const parsed = JSON.parse(raw);
+      return parsed && typeof parsed.paths === 'object' ? parsed.paths : {};
+    } catch {
+      return {};
+    }
+  }
+
+  private _writeManifest(dir: string, paths: Record<string, string>): void {
+    const payload = { version: 1, updatedAt: new Date().toISOString(), paths };
+    fs.writeFileSync(this._syncManifestPath(dir), JSON.stringify(payload, null, 2));
+  }
+
+  private async _dumpStudioScripts(instance_id?: string): Promise<Array<{ path: string; className: ScriptClassName; source: string }>> {
+    const response = await this._callSingle('/api/execute-luau', { code: buildDumpScriptsLuau() }, 'edit', instance_id);
+    const raw = typeof response?.returnValue === 'string' ? response.returnValue : undefined;
+    if (!raw) return [];
+    let parsed: unknown;
+    try {
+      parsed = JSON.parse(raw);
+    } catch {
+      throw new Error(`Could not parse script dump from Studio: ${raw.slice(0, 200)}`);
+    }
+    if (!Array.isArray(parsed)) return [];
+    return parsed.filter((e): e is { path: string; className: ScriptClassName; source: string } =>
+      !!e && typeof e.path === 'string' && typeof e.className === 'string' && typeof e.source === 'string'
+      && (e.className === 'Script' || e.className === 'LocalScript' || e.className === 'ModuleScript'));
+  }
+
+  private _walkLocalScripts(dir: string): Map<string, string> {
+    const out = new Map<string, string>();
+    const walk = (current: string) => {
+      let entries: fs.Dirent[];
+      try {
+        entries = fs.readdirSync(current, { withFileTypes: true });
+      } catch {
+        return;
+      }
+      for (const entry of entries) {
+        const full = path.join(current, entry.name);
+        const rel = path.relative(dir, full).split(path.sep).join('/');
+        if (entry.isDirectory()) {
+          walk(full);
+        } else if (this.sync.classNameForFile(entry.name) && !this.sync.isIgnored(rel)) {
+          out.set(rel, fs.readFileSync(full, 'utf8'));
+        }
+      }
+    };
+    walk(dir);
+    return out;
+  }
+
+  private _resolveSyncDir(syncDir?: string): string {
+    return path.resolve(syncDir ?? process.env.ROBLOX_SYNC_DIR ?? path.join(process.cwd(), 'roblox-src'));
+  }
+
+  async syncPull(syncDir?: string, instance_id?: string) {
+    const dir = this._resolveSyncDir(syncDir);
+    const scripts = await this._dumpStudioScripts(instance_id);
+    fs.mkdirSync(dir, { recursive: true });
+    const manifest: Record<string, string> = {};
+    let written = 0;
+    let skipped = 0;
+    for (const script of scripts) {
+      const rel = this.sync.instancePathToFilePath(script.path, script.className);
+      if (this.sync.isIgnored(rel)) { skipped++; continue; }
+      const full = path.join(dir, rel);
+      fs.mkdirSync(path.dirname(full), { recursive: true });
+      fs.writeFileSync(full, script.source);
+      manifest[rel] = script.source;
+      written++;
+    }
+    this._writeManifest(dir, manifest);
+    this.safety.recordOperation({ kind: 'sync_pull', summary: `pulled ${written} scripts to ${dir}` });
+    return { content: [{ type: 'text', text: JSON.stringify({ pulled: written, skipped, dir }) }] as ToolContent[] };
+  }
+
+  async syncStatus(syncDir?: string, instance_id?: string) {
+    const dir = this._resolveSyncDir(syncDir);
+    const studio = new Map(
+      (await this._dumpStudioScripts(instance_id)).map((s) => [this.sync.instancePathToFilePath(s.path, s.className), s.source] as const),
+    );
+    const local = this._walkLocalScripts(dir);
+    const base = this._readManifest(dir);
+    const rels = new Set<string>([...studio.keys(), ...local.keys(), ...Object.keys(base)]);
+    const groups: Record<string, string[]> = { local: [], studio: [], both: [], none: [] };
+    for (const rel of rels) {
+      if (this.sync.isIgnored(rel)) continue;
+      const kind = this.sync.detectConflict({ local: local.get(rel), base: base[rel], studio: studio.get(rel) });
+      groups[kind].push(rel);
+    }
+    return {
+      content: [{
+        type: 'text',
+        text: JSON.stringify({
+          dir,
+          localOnlyChanges: groups.local,
+          studioOnlyChanges: groups.studio,
+          conflicts: groups.both,
+          inSync: groups.none.length,
+        }, null, 2),
+      }] as ToolContent[],
+    };
+  }
+
+  async syncPush(syncDir?: string, instance_id?: string, options?: SafetyOptions) {
+    const dir = this._resolveSyncDir(syncDir);
+    const studio = new Map(
+      (await this._dumpStudioScripts(instance_id)).map((s) => [this.sync.instancePathToFilePath(s.path, s.className), { source: s.source, path: s.path }] as const),
+    );
+    const local = this._walkLocalScripts(dir);
+    const base = this._readManifest(dir);
+    const pushed: string[] = [];
+    const conflicts: string[] = [];
+    const wouldPush: string[] = [];
+
+    for (const [rel, content] of local) {
+      if (this.sync.isIgnored(rel)) continue;
+      const studioEntry = studio.get(rel);
+      const kind = this.sync.detectConflict({ local: content, base: base[rel], studio: studioEntry?.source });
+      if (kind === 'none' || kind === 'studio') continue; // nothing local to push, or studio is authoritative
+      if (kind === 'both') { conflicts.push(rel); continue; }
+      // kind === 'local' — safe to push
+      const mapped = this.sync.filePathToInstancePath(rel);
+      if (!mapped) continue;
+      if (options?.dryRun) { wouldPush.push(rel); continue; }
+      await this._callSingle('/api/set-script-source', { instancePath: mapped.instancePath, source: content }, undefined, instance_id);
+      base[rel] = content;
+      pushed.push(rel);
+    }
+
+    if (!options?.dryRun && pushed.length > 0) {
+      this._writeManifest(dir, base);
+      this.safety.recordOperation({ kind: 'sync_push', summary: `pushed ${pushed.length} scripts from ${dir}` });
+    }
+
+    return {
+      content: [{
+        type: 'text',
+        text: JSON.stringify({
+          dir,
+          dryRun: options?.dryRun === true,
+          pushed: options?.dryRun ? wouldPush : pushed,
+          conflictsSkipped: conflicts,
+          hint: conflicts.length > 0 ? 'Conflicts changed on both sides; resolve manually then re-run, or sync_pull to take Studio.' : undefined,
+        }, null, 2),
+      }] as ToolContent[],
+    };
   }
 
   // Resolve (instance_id, target-role) → concrete (instanceId, role) and
@@ -1162,11 +1638,14 @@ export class RobloxStudioTools {
     };
   }
 
-  async massCreateObjects(objects: Array<{className: string, parent: string, name?: string, properties?: Record<string, any>}>, instance_id?: string) {
+  async massCreateObjects(objects: Array<{className: string, parent: string, name?: string, properties?: Record<string, any>}>, instance_id?: string, options?: SafetyOptions) {
     if (!objects || objects.length === 0) {
       throw new Error('Objects array is required for mass_create_objects');
     }
+    const gated = this._safetyGate('bulk_create', `create ${objects.length} objects`, { count: objects.length }, options);
+    if (gated) return gated;
     const response = await this._callSingle('/api/mass-create-objects', { objects }, undefined, instance_id);
+    this.safety.recordOperation({ kind: 'bulk_create', summary: `created ${objects.length} objects` });
     return {
       content: [
         {
@@ -1177,11 +1656,14 @@ export class RobloxStudioTools {
     };
   }
 
-  async deleteObject(instancePath: string, instance_id?: string) {
+  async deleteObject(instancePath: string, instance_id?: string, options?: SafetyOptions) {
     if (!instancePath) {
       throw new Error('Instance path is required for delete_object');
     }
+    const gated = this._safetyGate('delete', `delete ${instancePath}`, { path: instancePath }, options);
+    if (gated) return gated;
     const response = await this._callSingle('/api/delete-object', { instancePath }, undefined, instance_id);
+    this.safety.recordOperation({ kind: 'delete', summary: `deleted ${instancePath}` });
     return {
       content: [
         {
@@ -1320,16 +1802,33 @@ export class RobloxStudioTools {
     };
   }
 
-  async setScriptSource(instancePath: string, source: string, instance_id?: string) {
+  async setScriptSource(instancePath: string, source: string, instance_id?: string, options?: SafetyOptions) {
     if (!instancePath || typeof source !== 'string') {
       throw new Error('Instance path and source code string are required for set_script_source');
     }
+    const gated = this._safetyGate('set_script_source', `overwrite ${instancePath} (${source.length} chars)`, { scriptSize: source.length }, options);
+    if (gated) return gated;
+
+    // Back up the current source before overwriting so the change is reversible
+    // via restore_script_backup. A failed backup fetch must not block the write,
+    // but we surface it as a warning so the caller knows undo is unavailable.
+    let backupWarning = '';
+    try {
+      const current = await this._callSingle('/api/get-script-source', { instancePath }, undefined, instance_id);
+      if (typeof current?.source === 'string') {
+        this.safety.backupScript(instancePath, current.source);
+      }
+    } catch (error) {
+      backupWarning = ` (warning: could not back up previous source: ${errorMessage(error)})`;
+    }
+
     const response = await this._callSingle('/api/set-script-source', { instancePath, source }, undefined, instance_id);
+    this.safety.recordOperation({ kind: 'set_script_source', summary: `overwrote ${instancePath} (${source.length} chars)` });
     return {
       content: [
         {
           type: 'text',
-          text: JSON.stringify(response)
+          text: JSON.stringify(response) + backupWarning
         }
       ]
     };
@@ -1533,11 +2032,14 @@ export class RobloxStudioTools {
     };
   }
 
-  async executeLuau(code: string, target?: string, instance_id?: string) {
+  async executeLuau(code: string, target?: string, instance_id?: string, options?: SafetyOptions) {
     if (!code) {
       throw new Error('Code is required for execute_luau');
     }
+    const gated = this._safetyGate('execute_luau', 'run Luau in Studio', { code }, options);
+    if (gated) return gated;
     const response = await this._callSingle('/api/execute-luau', { code }, target || 'edit', instance_id);
+    this.safety.recordOperation({ kind: 'execute_luau', summary: `ran Luau (${code.length} chars)` });
     return {
       content: [
         {
@@ -3307,6 +3809,68 @@ export class RobloxStudioTools {
         type: 'text',
         text: JSON.stringify(response)
       }]
+    };
+  }
+
+  // === Free marketplace (no Open Cloud key) ===
+  // Search Roblox's public toolbox for insertable assets, then insert with
+  // insert_asset (InsertService — also key-free). Pairs the discovery gap that
+  // search_assets (Creator Store) leaves for users without an API key.
+
+  async marketplaceSearch(keyword: string, category?: string, limit?: number, sortType?: string) {
+    if (!keyword || !keyword.trim()) {
+      throw new Error('keyword is required for marketplace_search');
+    }
+    try {
+      const results = await this.marketplace.search({ keyword, category, limit, sortType });
+      return {
+        content: [{
+          type: 'text',
+          text: JSON.stringify({
+            keyword,
+            category: category ?? 'Model',
+            count: results.length,
+            results,
+            hint: results.length > 0 ? 'Insert one with insert_asset (assetId) or marketplace_search_and_insert.' : 'No results — try a different keyword or category.',
+          }),
+        }] as ToolContent[],
+      };
+    } catch (error) {
+      return { content: [{ type: 'text', text: JSON.stringify({ error: errorMessage(error) }) }] as ToolContent[] };
+    }
+  }
+
+  async marketplaceSearchAndInsert(
+    keyword: string,
+    category?: string,
+    parentPath?: string,
+    position?: { x: number; y: number; z: number },
+    instance_id?: string,
+  ) {
+    if (!keyword || !keyword.trim()) {
+      throw new Error('keyword is required for marketplace_search_and_insert');
+    }
+    let results;
+    try {
+      results = await this.marketplace.search({ keyword, category, limit: 5 });
+    } catch (error) {
+      return { content: [{ type: 'text', text: JSON.stringify({ error: errorMessage(error) }) }] as ToolContent[] };
+    }
+    if (results.length === 0) {
+      return { content: [{ type: 'text', text: JSON.stringify({ inserted: false, reason: `No marketplace results for "${keyword}".` }) }] as ToolContent[] };
+    }
+    const chosen = results[0];
+    const response = await this._callSingle('/api/insert-asset', {
+      assetId: chosen.id,
+      parentPath: parentPath || 'game.Workspace',
+      position,
+    }, undefined, instance_id);
+    this.safety.recordOperation({ kind: 'marketplace_insert', summary: `inserted "${chosen.name}" (${chosen.id})` });
+    return {
+      content: [{
+        type: 'text',
+        text: JSON.stringify({ inserted: true, asset: chosen, alternatives: results.slice(1), response }),
+      }] as ToolContent[],
     };
   }
 

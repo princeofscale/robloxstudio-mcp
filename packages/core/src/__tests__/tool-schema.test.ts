@@ -53,6 +53,11 @@ describe('Tool schema compatibility', () => {
     'create_build',
     'generate_build',
     'get_connected_instances',
+    // Safety/audit tools operate on in-memory server state, not a Studio place.
+    'get_operation_history',
+    'list_script_backups',
+    // Free marketplace search runs server-side (public toolbox), not in a place.
+    'marketplace_search',
   ]);
 
   function toolHandlerBody(toolName: string): string {
@@ -170,6 +175,34 @@ describe('Tool schema compatibility', () => {
       export_rbxm: 'exportRbxm',
       import_rbxm: 'importRbxm',
       find_and_replace_in_scripts: 'findAndReplaceInScripts',
+      restore_script_backup: 'restoreScriptBackup',
+      ui_create_screen_gui: 'uiCreateScreenGui',
+      ui_create_frame: 'uiCreateFrame',
+      ui_create_text_label: 'uiCreateTextLabel',
+      ui_create_text_button: 'uiCreateTextButton',
+      ui_create_image_label: 'uiCreateImageLabel',
+      ui_create_image_button: 'uiCreateImageButton',
+      ui_apply_layout: 'uiApplyLayout',
+      ui_make_mobile_friendly: 'uiMakeMobileFriendly',
+      environment_set_time_of_day: 'environmentSetTimeOfDay',
+      environment_set_lighting_preset: 'environmentSetLightingPreset',
+      environment_set_atmosphere: 'environmentSetAtmosphere',
+      environment_set_sky: 'environmentSetSky',
+      environment_create_day_night_cycle_script: 'environmentCreateDayNightCycleScript',
+      terrain_generate_baseplate: 'terrainGenerateBaseplate',
+      terrain_generate_island: 'terrainGenerateIsland',
+      terrain_generate_mountains: 'terrainGenerateMountains',
+      terrain_generate_water: 'terrainGenerateWater',
+      terrain_paint_material: 'terrainPaintMaterial',
+      terrain_clear_region: 'terrainClearRegion',
+      template_create_obby_game: 'templateCreateObbyGame',
+      template_create_simulator_game: 'templateCreateSimulatorGame',
+      template_create_tycoon_game: 'templateCreateTycoonGame',
+      template_create_round_game: 'templateCreateRoundGame',
+      sync_pull: 'syncPull',
+      sync_status: 'syncStatus',
+      sync_push: 'syncPush',
+      marketplace_search_and_insert: 'marketplaceSearchAndInsert',
     };
     for (const tool of TOOL_DEFINITIONS) {
       if (STUDIO_AGNOSTIC_TOOLS.has(tool.name)) continue;

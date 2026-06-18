@@ -1,7 +1,24 @@
-import { RobloxStudioMCPServer, getAllTools } from '@chrrxs/robloxstudio-mcp-core';
+import { RobloxStudioMCPServer, getAllTools, runDoctor } from '@chrrxs/robloxstudio-mcp-core';
 import { createRequire } from 'module';
 
-if (process.argv.includes('--install-plugin')) {
+const argFlagValue = (flag: string): string | undefined => {
+  const idx = process.argv.indexOf(flag);
+  return idx !== -1 && idx + 1 < process.argv.length ? process.argv[idx + 1] : undefined;
+};
+
+// --port / --debug are honored by setting env the core server reads.
+const portArg = argFlagValue('--port');
+if (portArg) process.env.ROBLOX_STUDIO_PORT = portArg;
+if (process.argv.includes('--debug')) process.env.ROBLOX_STUDIO_DEBUG = '1';
+
+if (process.argv.includes('--doctor')) {
+  const require = createRequire(import.meta.url);
+  const { version } = require('../package.json');
+  process.exitCode = await runDoctor({
+    version,
+    port: portArg ? parseInt(portArg) : undefined,
+  });
+} else if (process.argv.includes('--install-plugin')) {
   const { installPlugin } = await import('./install-plugin.js');
   await installPlugin().catch((err) => {
     console.error(err instanceof Error ? err.message : String(err));
