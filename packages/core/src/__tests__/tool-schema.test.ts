@@ -58,6 +58,9 @@ describe('Tool schema compatibility', () => {
     'list_script_backups',
     // Free marketplace search runs server-side (public toolbox), not in a place.
     'marketplace_search',
+    // AI image generation is server-side (Pollinations + local file / upload).
+    'image_generate',
+    'image_generate_and_upload',
   ]);
 
   function toolHandlerBody(toolName: string): string {

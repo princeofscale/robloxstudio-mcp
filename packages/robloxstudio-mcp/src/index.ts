@@ -45,10 +45,12 @@ if (process.argv.includes('--doctor')) {
   const openCloudKey = flagValue('--open-cloud-key');
   const creatorId = flagValue('--creator-id');
   const creatorGroupId = flagValue('--creator-group-id');
+  const pollinationsKey = flagValue('--pollinations-key');
 
   if (openCloudKey) process.env.ROBLOX_OPEN_CLOUD_API_KEY = openCloudKey;
   if (creatorId) process.env.ROBLOX_CREATOR_USER_ID = creatorId;
   if (creatorGroupId) process.env.ROBLOX_CREATOR_GROUP_ID = creatorGroupId;
+  if (pollinationsKey) process.env.POLLINATIONS_API_KEY = pollinationsKey;
 
   const require = createRequire(import.meta.url);
   const { version: VERSION } = require('../package.json');

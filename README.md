@@ -68,6 +68,15 @@ Fully close and reopen Studio after the plugin is first installed or updated. Th
 | `--port <n>` | Override the bridge port (default 58741). |
 | `--debug` | Verbose logging. |
 | `--doctor` | Run diagnostics and exit. |
+| `--pollinations-key <k>` | Pollinations API key for AI image generation (or set `POLLINATIONS_API_KEY`). |
+| `--open-cloud-key <k>` | Roblox Open Cloud key for Creator Store + asset upload (or `ROBLOX_OPEN_CLOUD_API_KEY`). |
+
+### Optional keys
+
+Everything core works key-free. Two optional integrations unlock more:
+
+- **AI image generation** — set `POLLINATIONS_API_KEY` (a server-side `sk_` key from [enter.pollinations.ai](https://enter.pollinations.ai)). Default model is `seedream5`; pick any from [the model list](https://enter.pollinations.ai/#models). Free models like `flux`/`zimage` work immediately; premium models (seedream5, nanobanana, …) need account credits.
+- **Creator Store & asset upload** — set `ROBLOX_OPEN_CLOUD_API_KEY` (with `asset:write`) for `search_assets`, `upload_asset`, and `image_generate_and_upload`. The **free** `marketplace_search` + `insert_asset` need no key.
 
 ### Verify it works: `--doctor`
 
@@ -94,7 +103,33 @@ While the server is running, open **http://localhost:58741/dashboard** for a liv
 > *"Set the lighting to a horror preset and add a day-night cycle."*
 > *"Start a multiplayer test with 2 clients and tell me why the round never starts."*
 
-## Tool catalog (119 tools)
+## How it compares to WEPPY
+
+| Capability | This MCP | WEPPY |
+|---|---|---|
+| Price | **Free, MIT, self-hosted** | Free tier + paid **Pro** |
+| Scripts / instances / properties / selection / tags | ✅ | ✅ |
+| Multi-place routing | ✅ `instance_id` | ✅ |
+| Terrain generation | ✅ baseplate/island/mountains/water/paint, **volume-limited** | ✅ |
+| Lighting / atmosphere / sky | ✅ + **8 presets** + day-night script | ✅ |
+| UI builder | ✅ + **mobile-friendly preset** | ✅ (UI Studio, Pro) |
+| Audio / animation | ✅ | ✅ |
+| Apply image/texture by class | ✅ | ✅ |
+| **AI image generation** | ✅ Pollinations (any model) | ✅ |
+| Playtest control (F5/F8) + log capture | ✅ + multiplayer tests | ✅ (Pro) |
+| **Error reporting → script:line** | ✅ `diagnose_scripts` | ✅ |
+| Bidirectional local sync + conflict detection | ✅ (**free**) | ✅ (**Pro**) |
+| Change history / backups / undo | ✅ + script backups & restore | ✅ (Pro) |
+| Dashboard | ✅ `/dashboard` | ✅ |
+| **Free marketplace search (no key)** | ✅ `marketplace_search` | — |
+| **Game templates** (obby/simulator/tycoon/round) | ✅ | — |
+| **Safety layer** (dry-run, confirm, limits, protected services) | ✅ configurable | partial |
+| `--doctor` diagnostics | ✅ | — |
+| Read-only inspector edition | ✅ | — |
+
+Where we lead: a real **safety layer**, **game-template generators**, **free marketplace search**, **free sync/history** (Pro-gated in WEPPY), `--doctor`, and a **read-only edition** — all MIT and self-hosted.
+
+## Tool catalog (121 tools)
 
 - **Browse & inspect:** file tree, services, instances, properties, attributes, tags, descendants, scene/memory analysis.
 - **Edit:** create/delete/duplicate/move instances, set properties (typed), bulk operations, script read/patch/replace, grep.
@@ -105,6 +140,7 @@ While the server is running, open **http://localhost:58741/dashboard** for a liv
 - **Terrain:** `terrain_generate_baseplate`/`island`/`mountains`/`water`, `terrain_paint_material`, `terrain_clear_region` (volume-limited; clear requires confirmation).
 - **Game templates:** `template_create_obby_game`, `template_create_simulator_game`, `template_create_tycoon_game`, `template_create_round_game`.
 - **Media:** `audio_create_sound`, `audio_play_sound`, `animation_create`, `animation_play`, `asset_apply_texture` (auto-picks Image/Texture/Decal/MeshPart property).
+- **AI image generation:** `image_generate` (Pollinations text-to-image, default `seedream5`, saves a local file) and `image_generate_and_upload` (generate → upload to Roblox → returns assetId for `asset_apply_texture`).
 - **Diagnostics:** `diagnose_scripts` — captures the output log and returns errors/warnings mapped to script + line, to drive "fix all script errors".
 - **Local sync:** `sync_pull` (Studio → `.server.lua`/`.client.lua`/`.module.lua` files), `sync_status` (three-way diff), `sync_push` (files → Studio, conflict-aware, dry-run).
 - **Free marketplace (no key):** `marketplace_search` (public toolbox search for models/decals/audio/meshes) and `marketplace_search_and_insert` (find + insert the top match), plus key-free `insert_asset`/`preview_asset`.

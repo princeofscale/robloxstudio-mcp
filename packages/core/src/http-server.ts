@@ -174,6 +174,10 @@ export const TOOL_HANDLERS: Record<string, ToolHandler> = {
 
   // Diagnostics.
   diagnose_scripts: (tools, body) => tools.diagnoseScripts(body.maxEntries, body.instance_id),
+
+  // AI image generation (Pollinations) — server-side, no Studio routing.
+  image_generate: (tools, body) => tools.imageGenerate(body.prompt, body),
+  image_generate_and_upload: (tools, body) => tools.imageGenerateAndUpload(body.prompt, body, body.assetType, body.displayName),
 };
 
 // Self-contained diagnostics page (no external assets) served at /dashboard.

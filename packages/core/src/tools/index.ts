@@ -62,6 +62,7 @@ import {
   ApplyTextureOptions,
 } from '../builders/media-builders.js';
 import { parseLogErrors, formatDiagnostics } from '../diagnostics.js';
+import { PollinationsClient, DEFAULT_IMAGE_MODEL, ImageGenOptions } from '../image-client.js';
 import { runBuildExecutor } from './build-executor.js';
 import { OpenCloudClient } from '../opencloud-client.js';
 import { RobloxCookieClient } from '../roblox-cookie-client.js';
@@ -577,6 +578,7 @@ export class RobloxStudioTools {
   private safety: SafetyManager;
   private sync: SyncManager;
   private marketplace: MarketplaceClient;
+  private imageClient: PollinationsClient;
 
   constructor(bridge: BridgeService) {
     this.client = new StudioHttpClient(bridge);
@@ -586,6 +588,7 @@ export class RobloxStudioTools {
     this.safety = new SafetyManager();
     this.sync = new SyncManager();
     this.marketplace = new MarketplaceClient();
+    this.imageClient = new PollinationsClient();
   }
 
   // === Safety layer ===
@@ -3917,6 +3920,59 @@ export class RobloxStudioTools {
     const result = await this._runGeneratedLuau(buildApplyTextureLuau(options), instance_id);
     this.safety.recordOperation({ kind: 'texture', summary: `applied ${options.assetId} to ${options.targetPath}` });
     return result;
+  }
+
+  // === AI image generation (Pollinations) ===
+  // Generates an image from a text prompt and saves it locally. To use it in
+  // Roblox: upload it (image_generate_and_upload or upload_asset) to get an
+  // asset id, then asset_apply_texture it. Requires POLLINATIONS_API_KEY.
+
+  private async _generateImageToFile(prompt: string, options?: ImageGenOptions): Promise<{ file: string; bytes: number; model: string }> {
+    const { buffer, contentType } = await this.imageClient.generate(prompt, options ?? {});
+    const ext = contentType.includes('png') ? 'png' : 'jpg';
+    const slug = prompt.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 40) || 'image';
+    const dir = path.resolve(process.env.ROBLOX_IMAGE_DIR ?? path.join(process.cwd(), 'generated-images'));
+    fs.mkdirSync(dir, { recursive: true });
+    const file = path.join(dir, `${slug}-${Date.now()}.${ext}`);
+    fs.writeFileSync(file, buffer);
+    return { file, bytes: buffer.length, model: options?.model ?? DEFAULT_IMAGE_MODEL };
+  }
+
+  async imageGenerate(prompt: string, options?: ImageGenOptions) {
+    if (!prompt || !prompt.trim()) throw new Error('prompt is required for image_generate');
+    if (!this.imageClient.hasApiKey()) {
+      return { content: [{ type: 'text', text: JSON.stringify({ error: 'POLLINATIONS_API_KEY is not set. Get a server-side sk_ key from https://enter.pollinations.ai and pass it via env or --pollinations-key.' }) }] as ToolContent[] };
+    }
+    try {
+      const saved = await this._generateImageToFile(prompt, options);
+      this.safety.recordOperation({ kind: 'image_generate', summary: `generated "${prompt}" → ${saved.file}` });
+      return { content: [{ type: 'text', text: JSON.stringify({ prompt, ...saved, next: 'Upload with image_generate_and_upload or upload_asset, then asset_apply_texture.' }) }] as ToolContent[] };
+    } catch (error) {
+      return { content: [{ type: 'text', text: JSON.stringify({ error: errorMessage(error) }) }] as ToolContent[] };
+    }
+  }
+
+  async imageGenerateAndUpload(prompt: string, options?: ImageGenOptions, assetType?: string, displayName?: string) {
+    if (!prompt || !prompt.trim()) throw new Error('prompt is required for image_generate_and_upload');
+    if (!this.imageClient.hasApiKey()) {
+      return { content: [{ type: 'text', text: JSON.stringify({ error: 'POLLINATIONS_API_KEY is not set. Get a server-side sk_ key from https://enter.pollinations.ai.' }) }] as ToolContent[] };
+    }
+    let saved;
+    try {
+      saved = await this._generateImageToFile(prompt, options);
+    } catch (error) {
+      return { content: [{ type: 'text', text: JSON.stringify({ error: errorMessage(error) }) }] as ToolContent[] };
+    }
+    // Reuse the existing Roblox upload path (Open Cloud / cookie auth). It
+    // returns a structured result with the new assetId once moderation clears.
+    try {
+      const upload = await this.uploadAsset(saved.file, assetType ?? 'Decal', displayName ?? prompt.slice(0, 50));
+      this.safety.recordOperation({ kind: 'image_generate', summary: `generated + uploaded "${prompt}"` });
+      const uploadText = (upload.content.find((c) => c.type === 'text') as { text?: string } | undefined)?.text ?? '{}';
+      return { content: [{ type: 'text', text: JSON.stringify({ generated: saved, upload: JSON.parse(uploadText), next: 'Apply the returned assetId with asset_apply_texture.' }) }] as ToolContent[] };
+    } catch (error) {
+      return { content: [{ type: 'text', text: JSON.stringify({ generated: saved, uploadError: errorMessage(error), hint: 'Image saved locally; set ROBLOX_OPEN_CLOUD_API_KEY (asset:write) or ROBLOSECURITY to upload, or upload the file manually in Studio.' }) }] as ToolContent[] };
+    }
   }
 
   // === Diagnostics ("fix all script errors") ===
