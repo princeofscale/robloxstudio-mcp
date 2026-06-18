@@ -195,6 +195,18 @@ node scripts/build-plugin.mjs                            # → MCPPlugin.rbxmx
 node scripts/build-plugin.mjs --variant inspector        # → MCPInspectorPlugin.rbxmx
 ```
 
+## Releasing
+
+Publishing is automated. Push a version tag and GitHub Actions runs the quality
+gate, sets the version from the tag, and publishes both packages to npm:
+
+```bash
+git tag v2.17.0 && git push origin v2.17.0
+```
+
+Requires a repo secret `NPM_TOKEN` (an npm **Automation** token, which bypasses
+2FA). Dependency PRs are opened weekly by Dependabot.
+
 ## License & credits
 
 MIT Licensed. Based on [Chrrxs/robloxstudio-mcp](https://github.com/Chrrxs/robloxstudio-mcp), itself based on [boshyxd/robloxstudio-mcp](https://github.com/boshyxd/robloxstudio-mcp). Safety layer, UI/terrain/environment/template builders, local sync, `--doctor`, and the dashboard are additions in this fork.

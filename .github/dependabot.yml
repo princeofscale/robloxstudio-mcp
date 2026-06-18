@@ -1,0 +1,41 @@
+version: 2
+updates:
+  # Root monorepo (workspaces: packages/*) — Node deps.
+  - package-ecosystem: npm
+    directory: /
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 5
+    labels: [dependencies]
+    groups:
+      # One PR per week for all low-risk minor/patch bumps to cut noise.
+      minor-and-patch:
+        update-types: [minor, patch]
+
+  # Studio plugin (roblox-ts) — its own lockfile. TypeScript / roblox-ts /
+  # compiler-types are version-locked together (roblox-ts 3.0.0 pins TS 5.5.3),
+  # so Dependabot must not bump them independently or the plugin won't compile.
+  - package-ecosystem: npm
+    directory: /studio-plugin
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 3
+    labels: [dependencies, studio-plugin]
+    ignore:
+      - dependency-name: typescript
+      - dependency-name: roblox-ts
+      - dependency-name: '@rbxts/compiler-types'
+    groups:
+      rbxts-and-deps:
+        update-types: [minor, patch]
+
+  # Keep the GitHub Actions in our workflows current.
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 3
+    labels: [dependencies, github-actions]
+    groups:
+      actions:
+        update-types: [minor, patch]

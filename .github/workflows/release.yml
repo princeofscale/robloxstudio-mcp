@@ -1,0 +1,51 @@
+name: Release
+
+# Publish both packages to npm when a version tag (v1.2.3) is pushed.
+# The tag drives the version — no need to bump package.json by hand:
+#   git tag v2.17.0 && git push origin v2.17.0
+# Requires repo secret NPM_TOKEN (an npm Automation token — bypasses 2FA).
+
+on:
+  push:
+    tags: ['v*.*.*']
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write # enables npm provenance
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Node 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          registry-url: https://registry.npmjs.org
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Install plugin dependencies
+        working-directory: studio-plugin
+        run: npm ci
+
+      - name: Quality gate (lint · typecheck · test)
+        run: |
+          npm run lint
+          npm run typecheck
+          npm test
+
+      - name: Set version from tag
+        run: |
+          VERSION="${GITHUB_REF_NAME#v}"
+          echo "Releasing v$VERSION"
+          node -e "const fs=require('fs');const p=JSON.parse(fs.readFileSync('package.json'));p.version='${VERSION}';fs.writeFileSync('package.json',JSON.stringify(p,null,2)+'\n')"
+
+      - name: Build and publish
+        run: node scripts/publish.mjs
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+          NPM_CONFIG_PROVENANCE: 'true'
