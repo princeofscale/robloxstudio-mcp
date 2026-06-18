@@ -350,7 +350,7 @@ function pollForRequests(connIndex: number) {
 			const warningKey = `${State.CURRENT_VERSION}:${serverVersion}`;
 			if (lastVersionMismatchWarningKey !== warningKey) {
 				lastVersionMismatchWarningKey = warningKey;
-				warn(`[robloxstudio-mcp] Version mismatch: Studio plugin v${State.CURRENT_VERSION} / MCP v${serverVersion}. Run npx -y @chrrxs/robloxstudio-mcp@latest --auto-install-plugin and restart Studio.`);
+				warn(`[robloxstudio-mcp] Version mismatch: Studio plugin v${State.CURRENT_VERSION} / MCP v${serverVersion}. Run npx -y @princeofscale/robloxstudio-mcp@latest --auto-install-plugin and restart Studio.`);
 			}
 			UI.showBanner("version-mismatch", `Plugin v${State.CURRENT_VERSION} / MCP v${serverVersion} mismatch`);
 		} else if (hasVersionMismatch) {
@@ -587,7 +587,7 @@ function checkForUpdates() {
 	task.spawn(() => {
 		const [success, result] = pcall(() => {
 			return HttpService.RequestAsync({
-				Url: "https://registry.npmjs.org/@chrrxs/robloxstudio-mcp/latest",
+				Url: "https://registry.npmjs.org/@princeofscale/robloxstudio-mcp/latest",
 				Method: "GET",
 				Headers: { Accept: "application/json" },
 			});

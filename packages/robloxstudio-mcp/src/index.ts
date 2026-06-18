@@ -1,4 +1,4 @@
-import { RobloxStudioMCPServer, getAllTools, runDoctor } from '@chrrxs/robloxstudio-mcp-core';
+import { RobloxStudioMCPServer, getAllTools, runDoctor } from '@princeofscale/robloxstudio-mcp-core';
 import { createRequire } from 'module';
 
 const argFlagValue = (flag: string): string | undefined => {

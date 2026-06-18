@@ -5,7 +5,7 @@ SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd -P)"
 DEV_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd -P)"
 
 if [[ "${ROBLOXSTUDIO_MCP_USE_PUBLISHED:-}" == "1" ]]; then
-	exec npx -y @chrrxs/robloxstudio-mcp@latest --auto-install-plugin
+	exec npx -y @princeofscale/robloxstudio-mcp@latest --auto-install-plugin
 fi
 
 cd "${DEV_ROOT}"

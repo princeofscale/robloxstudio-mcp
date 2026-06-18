@@ -7,7 +7,7 @@ export default defineConfig({
   bundle: true,
   splitting: false,
   clean: true,
-  noExternal: ['@chrrxs/robloxstudio-mcp-core'],
+  noExternal: ['@princeofscale/robloxstudio-mcp-core'],
   banner: {
     js: '#!/usr/bin/env node',
   },

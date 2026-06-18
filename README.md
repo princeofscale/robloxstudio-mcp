@@ -2,7 +2,8 @@
 
 **A free, open-source MCP server that lets Claude, Cursor, Codex, or Gemini operate Roblox Studio — debug live playtests, bulk-edit places, and scaffold whole games — with a built-in safety layer.**
 
-[![NPM Version](https://img.shields.io/npm/v/@chrrxs/robloxstudio-mcp)](https://www.npmjs.com/package/@chrrxs/robloxstudio-mcp)
+[![CI](https://github.com/princeofscale/robloxstudio-mcp/actions/workflows/ci.yml/badge.svg)](https://github.com/princeofscale/robloxstudio-mcp/actions/workflows/ci.yml)
+[![NPM Version](https://img.shields.io/npm/v/@princeofscale/robloxstudio-mcp)](https://www.npmjs.com/package/@princeofscale/robloxstudio-mcp)
 
 ## What this is
 
@@ -32,13 +33,13 @@ Your place: Workspace · ServerScriptService · ReplicatedStorage · StarterGui 
 
 ```bash
 # Claude Code
-claude mcp add robloxstudio -- npx -y @chrrxs/robloxstudio-mcp@latest --auto-install-plugin
+claude mcp add robloxstudio -- npx -y @princeofscale/robloxstudio-mcp@latest --auto-install-plugin
 
 # Codex CLI
-codex mcp add robloxstudio -- npx -y @chrrxs/robloxstudio-mcp@latest --auto-install-plugin
+codex mcp add robloxstudio -- npx -y @princeofscale/robloxstudio-mcp@latest --auto-install-plugin
 
 # Gemini CLI
-gemini mcp add robloxstudio npx --trust -- -y @chrrxs/robloxstudio-mcp@latest --auto-install-plugin
+gemini mcp add robloxstudio npx --trust -- -y @princeofscale/robloxstudio-mcp@latest --auto-install-plugin
 ```
 
 **Cursor** — add `.cursor/mcp.json` to your project:
@@ -48,13 +49,13 @@ gemini mcp add robloxstudio npx --trust -- -y @chrrxs/robloxstudio-mcp@latest --
   "mcpServers": {
     "robloxstudio": {
       "command": "npx",
-      "args": ["-y", "@chrrxs/robloxstudio-mcp@latest", "--auto-install-plugin"]
+      "args": ["-y", "@princeofscale/robloxstudio-mcp@latest", "--auto-install-plugin"]
     }
   }
 }
 ```
 
-**Manual plugin install:** `npx -y @chrrxs/robloxstudio-mcp@latest --install-plugin`. Set `MCP_PLUGINS_DIR` first to override the target folder (works on Windows, macOS, WSL).
+**Manual plugin install:** `npx -y @princeofscale/robloxstudio-mcp@latest --install-plugin`. Set `MCP_PLUGINS_DIR` first to override the target folder (works on Windows, macOS, WSL).
 
 Fully close and reopen Studio after the plugin is first installed or updated. The plugin shows **Connected** when ready.
 
@@ -71,7 +72,7 @@ Fully close and reopen Studio after the plugin is first installed or updated. Th
 ### Verify it works: `--doctor`
 
 ```bash
-npx -y @chrrxs/robloxstudio-mcp@latest --doctor
+npx -y @princeofscale/robloxstudio-mcp@latest --doctor
 ```
 
 Checks Node version, server package, whether the Studio plugin is installed, whether the local bridge is running, and whether Studio is reachable — with a clear pass/warn/fail line for each.
@@ -119,16 +120,16 @@ Still: only connect this to places you own, and review what the AI proposes befo
 
 ## Inspector edition (read-only)
 
-[![NPM Version](https://img.shields.io/npm/v/@chrrxs/robloxstudio-mcp-inspector)](https://www.npmjs.com/package/@chrrxs/robloxstudio-mcp-inspector)
+[![NPM Version](https://img.shields.io/npm/v/@princeofscale/robloxstudio-mcp-inspector)](https://www.npmjs.com/package/@princeofscale/robloxstudio-mcp-inspector)
 
 Same plugin family, read-only tool set — no writes, no script edits, no creation/deletion. Safe for browsing, code review, and debugging.
 
 ```bash
-npx -y @chrrxs/robloxstudio-mcp-inspector@latest --install-plugin
+npx -y @princeofscale/robloxstudio-mcp-inspector@latest --install-plugin
 
-claude mcp add robloxstudio-inspector -- npx -y @chrrxs/robloxstudio-mcp-inspector@latest --auto-install-plugin
-codex mcp add robloxstudio-inspector -- npx -y @chrrxs/robloxstudio-mcp-inspector@latest --auto-install-plugin
-gemini mcp add robloxstudio-inspector npx --trust -- -y @chrrxs/robloxstudio-mcp-inspector@latest --auto-install-plugin
+claude mcp add robloxstudio-inspector -- npx -y @princeofscale/robloxstudio-mcp-inspector@latest --auto-install-plugin
+codex mcp add robloxstudio-inspector -- npx -y @princeofscale/robloxstudio-mcp-inspector@latest --auto-install-plugin
+gemini mcp add robloxstudio-inspector npx --trust -- -y @princeofscale/robloxstudio-mcp-inspector@latest --auto-install-plugin
 ```
 
 Install only one variant at a time — don't leave both `MCPPlugin.rbxmx` and `MCPInspectorPlugin.rbxmx` in the Plugins folder. The CLI installers remove the other variant first.

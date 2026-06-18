@@ -1,4 +1,4 @@
-import { RobloxStudioMCPServer, getReadOnlyTools } from '@chrrxs/robloxstudio-mcp-core';
+import { RobloxStudioMCPServer, getReadOnlyTools } from '@princeofscale/robloxstudio-mcp-core';
 import { createRequire } from 'module';
 
 if (process.argv.includes('--install-plugin')) {

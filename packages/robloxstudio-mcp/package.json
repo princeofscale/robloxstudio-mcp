@@ -1,5 +1,5 @@
 {
-  "name": "@chrrxs/robloxstudio-mcp",
+  "name": "@princeofscale/robloxstudio-mcp",
   "version": "2.16.3",
   "description": "MCP server for testing, debugging, and controlling Roblox Studio from AI coding tools",
   "main": "dist/index.js",
@@ -43,6 +43,6 @@
     "ws": "^8.14.2"
   },
   "devDependencies": {
-    "@chrrxs/robloxstudio-mcp-core": "*"
+    "@princeofscale/robloxstudio-mcp-core": "*"
   }
 }

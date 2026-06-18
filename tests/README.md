@@ -1,6 +1,6 @@
 # tests/
 
-Integration tests that drive a live `@chrrxs/robloxstudio-mcp` subprocess via
+Integration tests that drive a live `@princeofscale/robloxstudio-mcp` subprocess via
 stdio MCP, exercising real Studio behavior through the plugin. Each test
 spawns its own subprocess and is responsible for cleaning up any playtest
 state it starts.

@@ -4,7 +4,7 @@ import { join } from 'path';
 import { homedir } from 'os';
 
 // Shared helpers for the per-package install-plugin.ts in
-// @chrrxs/robloxstudio-mcp and @chrrxs/robloxstudio-mcp-inspector. Bundled
+// @princeofscale/robloxstudio-mcp and @princeofscale/robloxstudio-mcp-inspector. Bundled
 // into both via tsup's noExternal at publish time, so changes here ship in
 // both packages on the next publish.
 

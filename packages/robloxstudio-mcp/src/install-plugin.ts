@@ -3,7 +3,7 @@ import { dirname, join } from 'path';
 import { fileURLToPath } from 'url';
 import { get } from 'https';
 import { IncomingMessage } from 'http';
-import { getPluginsFolder, handleVariantConflict } from '@chrrxs/robloxstudio-mcp-core';
+import { getPluginsFolder, handleVariantConflict } from '@princeofscale/robloxstudio-mcp-core';
 
 const REPO = 'chrrxs/robloxstudio-mcp';
 const ASSET_NAME = 'MCPPlugin.rbxmx';

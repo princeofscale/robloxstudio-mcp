@@ -49,7 +49,7 @@ export const BRIDGE_NAMES = {
 // Embedded Luau. The double `${...}` references our exported names so a
 // rename here propagates to both the script source and the tool wrappers.
 const SERVER_BRIDGE_SOURCE = `
--- Installed by @chrrxs/robloxstudio-mcp to power the eval_server_runtime MCP
+-- Installed by @princeofscale/robloxstudio-mcp to power the eval_server_runtime MCP
 -- tool (shared-require-cache eval on the server during playtests). Inert
 -- outside Studio (no-ops in live games); safe to leave in place.
 
@@ -77,7 +77,7 @@ end
 `;
 
 const CLIENT_BRIDGE_SOURCE = `
--- Installed by @chrrxs/robloxstudio-mcp to power the eval_client_runtime MCP
+-- Installed by @princeofscale/robloxstudio-mcp to power the eval_client_runtime MCP
 -- tool (shared-require-cache eval on the client during playtests). Inert
 -- outside Studio (no-ops in live games); safe to leave in place.
 

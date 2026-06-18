@@ -1,5 +1,5 @@
 {
-  "name": "@chrrxs/robloxstudio-mcp-inspector",
+  "name": "@princeofscale/robloxstudio-mcp-inspector",
   "version": "2.16.3",
   "description": "Read-only MCP server for inspecting and debugging Roblox Studio from AI coding tools",
   "main": "dist/index.js",
@@ -45,6 +45,6 @@
     "ws": "^8.14.2"
   },
   "devDependencies": {
-    "@chrrxs/robloxstudio-mcp-core": "*"
+    "@princeofscale/robloxstudio-mcp-core": "*"
   }
 }
