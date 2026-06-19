@@ -498,4 +498,3 @@ end
 error("Unsupported device simulator operation: " .. tostring(opts.operation), 0)
 `.trim();
 }
-
