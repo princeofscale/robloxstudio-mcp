@@ -1,58 +1,17 @@
 import { StudioHttpClient } from './studio-client.js';
 import { BridgeService, RoutingFailure } from '../bridge-service.js';
 import { SafetyManager, OperationKind } from '../safety/safety-manager.js';
-import {
-  buildScreenGuiLuau,
-  buildGuiObjectLuau,
-  buildApplyLayoutLuau,
-  buildMobileFriendlyLuau,
-  GuiObjectClass,
-  ScreenGuiOptions,
-  GuiObjectOptions,
-  LayoutOptions,
-} from '../builders/ui-builders.js';
-import {
-  buildSetTimeOfDayLuau,
-  buildLightingPresetLuau,
-  buildAtmosphereLuau,
-  buildSkyLuau,
-  buildDayNightCycleScriptLuau,
-  AtmospherePreset,
-  SkyOptions,
-  DayNightCycleOptions,
-} from '../builders/environment-builders.js';
-import {
-  buildBaseplateLuau,
-  buildIslandLuau,
-  buildMountainsLuau,
-  buildWaterLuau,
-  buildPaintMaterialLuau,
-  buildClearRegionLuau,
-  boxVolume,
-  regionVolume,
-  BaseplateOptions,
-  IslandOptions,
-  MountainsOptions,
-  WaterOptions,
-  PaintMaterialOptions,
-  ClearRegionOptions,
-} from '../builders/terrain-builders.js';
-import {
-  buildObbyTemplateLuau,
-  buildSimulatorTemplateLuau,
-  buildTycoonTemplateLuau,
-  buildRoundTemplateLuau,
-  ObbyTemplateOptions,
-  SimulatorTemplateOptions,
-  TycoonTemplateOptions,
-  RoundTemplateOptions,
-} from '../builders/template-builders.js';
-import { SyncManager, ScriptClassName } from '../sync/sync-manager.js';
-import { buildDumpScriptsLuau } from '../sync/sync-luau.js';
+import type { ScreenGuiOptions, GuiObjectOptions, LayoutOptions } from '../builders/ui-builders.js';
+import type { AtmospherePreset, SkyOptions, DayNightCycleOptions } from '../builders/environment-builders.js';
+import type { BaseplateOptions, IslandOptions, MountainsOptions, WaterOptions, PaintMaterialOptions, ClearRegionOptions } from '../builders/terrain-builders.js';
+import type { ObbyTemplateOptions, SimulatorTemplateOptions, TycoonTemplateOptions, RoundTemplateOptions } from '../builders/template-builders.js';
+import { SyncManager } from '../sync/sync-manager.js';
 import { MarketplaceClient } from '../marketplace-client.js';
 import { interpretInsertResponse } from '../assets.js';
 import { typedError, responseErrorCode } from '../errors.js';
 import { compactText } from '../compact.js';
+import { shapeListResponse } from '../response-shape.js';
+import { buildSceneSummaryLuau } from '../builders/scene-summary.js';
 import {
   buildCreateSoundLuau,
   buildPlaySoundLuau,
@@ -67,511 +26,34 @@ import {
 import { parseLogErrors, formatDiagnostics } from '../diagnostics.js';
 import { PollinationsClient, DEFAULT_IMAGE_MODEL, ImageGenOptions } from '../image-client.js';
 import { runBuildExecutor } from './build-executor.js';
+import { GeneratedBuilderTools } from './generated-builder-tools.js';
+import { SyncTools } from './sync-tools.js';
 import { OpenCloudClient } from '../opencloud-client.js';
 import { RobloxCookieClient } from '../roblox-cookie-client.js';
-import { rgbaToJpeg } from '../jpeg-encoder.js';
-import { rgbaToPng } from '../png-encoder.js';
 import * as fs from 'fs';
 import * as os from 'os';
 import * as path from 'path';
-
-type RawImageCaptureResponse = {
-  success?: boolean;
-  error?: string;
-  width?: number;
-  height?: number;
-  data?: string;
-  instancePath?: string;
-  instanceName?: string;
-  cameraPreset?: string;
-};
-
-type ToolContent =
-  | { type: 'text'; text: string }
-  | { type: 'image'; data: string; mimeType: string };
-
-type EncodedViewportCapture = {
-  success: true;
-  width: number;
-  height: number;
-  format: 'jpeg' | 'png';
-  quality?: number;
-  note: string;
-  data: string;
-  mimeType: string;
-  message: string;
-} | {
-  success: false;
-  error: string;
-};
-
-type DeviceSimulatorSettings = {
-  deviceId?: string;
-  orientation?: string;
-  resolution?: { width: number; height: number };
-  pixelDensity?: number;
-  scalingMode?: string;
-};
-
-type DeviceSimulatorMatrixEntry = DeviceSimulatorSettings & {
-  label?: string;
-};
-
-type SimulationInclude = 'network' | 'deviceSimulator' | 'both';
-
-// Per-call safety controls threaded into destructive/bulk tools. Both are
-// optional and additive: omitting them preserves the original behavior for any
-// non-gated operation, while gated ones (protected deletes, large bulk changes,
-// dangerous Luau) stay blocked until `confirm: true` is supplied.
-type SafetyOptions = {
-  /** Preview the operation without mutating anything. */
-  dryRun?: boolean;
-  /** Explicitly approve an operation the safety layer would otherwise gate. */
-  confirm?: boolean;
-};
-
-const MAX_INLINE_IMAGE_BYTES = 6_000_000;
-const MAX_DEVICE_MATRIX_ENTRIES = 6;
-const MAX_NETWORK_PACKET_LOSS_PERCENT = 0.5;
-
-// Encodes the raw RGBA capture into the requested image format.
-// - 'png': lossless — sharpest text/UI, but a busy 3D scene can be large.
-// - 'jpeg': default; quality 92 with 4:4:4 chroma (no subsampling) keeps text
-//   crisp at ~1/3 the size. The image rides back inline as an MCP tool result,
-//   so JPEG is the safe default for staying under client result-size caps.
-function encodeImageFromRgbaResponse(
-  response: RawImageCaptureResponse,
-  format: 'jpeg' | 'png',
-  quality: number,
-): { buffer: Buffer; mimeType: string } {
-  if (!response.data || response.width === undefined || response.height === undefined) {
-    throw new Error('Render response missing data, width, or height');
-  }
-  const rgbaBuffer = Buffer.from(response.data, 'base64');
-  if (format === 'png') {
-    return { buffer: rgbaToPng(rgbaBuffer, response.width, response.height), mimeType: 'image/png' };
-  }
-  return {
-    buffer: rgbaToJpeg(rgbaBuffer, response.width, response.height, quality),
-    mimeType: 'image/jpeg',
-  };
-}
-
-function sleep(ms: number): Promise<void> {
-  return new Promise((resolve) => setTimeout(resolve, ms));
-}
-
-function errorMessage(error: unknown): string {
-  return error instanceof Error ? error.message : String(error);
-}
-
-const NETWORK_PROFILE_KEYS = [
-  'InboundNetworkMinDelayMs',
-  'OutboundNetworkMinDelayMs',
-  'InboundNetworkJitterMs',
-  'OutboundNetworkJitterMs',
-  'InboundNetworkLossPercent',
-  'OutboundNetworkLossPercent',
-] as const;
-
-type NetworkProfileKey = typeof NETWORK_PROFILE_KEYS[number];
-type NetworkProfileValues = Partial<Record<NetworkProfileKey, number>>;
-
-const NETWORK_PROFILES: Record<'great' | 'good' | 'poor', Record<NetworkProfileKey, number>> = {
-  great: {
-    InboundNetworkMinDelayMs: 15,
-    OutboundNetworkMinDelayMs: 15,
-    InboundNetworkJitterMs: 0,
-    OutboundNetworkJitterMs: 0,
-    InboundNetworkLossPercent: 0,
-    OutboundNetworkLossPercent: 0,
-  },
-  good: {
-    InboundNetworkMinDelayMs: 50,
-    OutboundNetworkMinDelayMs: 50,
-    InboundNetworkJitterMs: 10,
-    OutboundNetworkJitterMs: 10,
-    InboundNetworkLossPercent: 0,
-    OutboundNetworkLossPercent: 0,
-  },
-  poor: {
-    InboundNetworkMinDelayMs: 150,
-    OutboundNetworkMinDelayMs: 150,
-    InboundNetworkJitterMs: 100,
-    OutboundNetworkJitterMs: 100,
-    InboundNetworkLossPercent: 0.5,
-    OutboundNetworkLossPercent: 0.5,
-  },
-};
-
-const ZERO_NETWORK_PROFILE: Record<NetworkProfileKey, number> = {
-  InboundNetworkMinDelayMs: 0,
-  OutboundNetworkMinDelayMs: 0,
-  InboundNetworkJitterMs: 0,
-  OutboundNetworkJitterMs: 0,
-  InboundNetworkLossPercent: 0,
-  OutboundNetworkLossPercent: 0,
-};
-
-const SIMULATION_PERSISTENCE_NOTES = [
-  'Normal Play client changes can write back to edit state.',
-  'Multiplayer clients inherit baseline at startup but are isolated afterward.',
-  'StudioTestService client device simulator state may appear stale on fresh clients, so reset after client startup is required.',
-];
-
-function normalizeNetworkProfile(profile: string, overrides?: Record<string, unknown>): NetworkProfileValues {
-  if (!['great', 'good', 'poor', 'custom'].includes(profile)) {
-    throw new Error('profile must be "great", "good", "poor", or "custom"');
-  }
-
-  const values: NetworkProfileValues = profile === 'custom'
-    ? {}
-    : { ...NETWORK_PROFILES[profile as 'great' | 'good' | 'poor'] };
-
-  if (overrides !== undefined) {
-    if (typeof overrides !== 'object' || overrides === null || Array.isArray(overrides)) {
-      throw new Error('overrides must be an object when provided');
-    }
-    const allowed = new Set<string>(NETWORK_PROFILE_KEYS);
-    for (const [key, value] of Object.entries(overrides)) {
-      if (!allowed.has(key)) {
-        throw new Error(`Unsupported network override "${key}". Allowed: ${NETWORK_PROFILE_KEYS.join(', ')}`);
-      }
-      if (typeof value !== 'number' || !Number.isFinite(value)) {
-        throw new Error(`Network override "${key}" must be a finite number`);
-      }
-      if (value < 0) {
-        throw new Error(`Network override "${key}" must be greater than or equal to 0`);
-      }
-      if ((key === 'InboundNetworkLossPercent' || key === 'OutboundNetworkLossPercent') && value > MAX_NETWORK_PACKET_LOSS_PERCENT) {
-        throw new Error(`Network override "${key}" cannot exceed ${MAX_NETWORK_PACKET_LOSS_PERCENT}; Roblox engine limits packet loss simulation to 0.5%.`);
-      }
-      values[key as NetworkProfileKey] = value;
-    }
-  }
-
-  if (Object.keys(values).length === 0) {
-    throw new Error('custom profile requires at least one override');
-  }
-
-  return values;
-}
-
-function buildNetworkProfileLuau(profile: string, values: NetworkProfileValues): string {
-  const valuesJson = JSON.stringify(values);
-  const keysJson = JSON.stringify(NETWORK_PROFILE_KEYS);
-  return `
-local HttpService = game:GetService("HttpService")
-local ns = settings():GetService("NetworkSettings")
-local keys = HttpService:JSONDecode(${JSON.stringify(keysJson)})
-local desired = HttpService:JSONDecode(${JSON.stringify(valuesJson)})
-local before = {}
-for _, key in ipairs(keys) do
-\tbefore[key] = ns[key]
-end
-for key, value in pairs(desired) do
-\tns[key] = value
-end
-local after = {}
-for _, key in ipairs(keys) do
-\tafter[key] = ns[key]
-end
-return HttpService:JSONEncode({
-\tprofile = ${JSON.stringify(profile)},
-\tapplied = desired,
-\tbefore = before,
-\tafter = after,
-})
-`.trim();
-}
-
-function buildNetworkStateLuau(operation: 'get' | 'reset'): string {
-  const keysJson = JSON.stringify(NETWORK_PROFILE_KEYS);
-  const resetJson = JSON.stringify(ZERO_NETWORK_PROFILE);
-  return `
-local HttpService = game:GetService("HttpService")
-local ns = settings():GetService("NetworkSettings")
-local operation = ${JSON.stringify(operation)}
-local keys = HttpService:JSONDecode(${JSON.stringify(keysJson)})
-local resetValues = HttpService:JSONDecode(${JSON.stringify(resetJson)})
-
-local function readState()
-\tlocal state = {}
-\tfor _, key in ipairs(keys) do
-\t\tstate[key] = ns[key]
-\tend
-\treturn state
-end
-
-if operation == "get" then
-\treturn HttpService:JSONEncode({
-\t\tsuccess = true,
-\t\tstate = readState(),
-\t})
-end
-
-if operation == "reset" then
-\tlocal before = readState()
-\tfor key, value in pairs(resetValues) do
-\t\tns[key] = value
-\tend
-\treturn HttpService:JSONEncode({
-\t\tsuccess = true,
-\t\tapplied = resetValues,
-\t\tbefore = before,
-\t\tafter = readState(),
-\t})
-end
-
-error("Unsupported network simulation operation: " .. tostring(operation), 0)
-`.trim();
-}
-
-function normalizeDeviceSimulatorResolution(value: unknown): { width: number; height: number } | undefined {
-  if (value === undefined) return undefined;
-  if (typeof value !== 'object' || value === null || Array.isArray(value)) {
-    throw new Error('resolution must be an object with positive integer width and height');
-  }
-  const resolution = value as { width?: unknown; height?: unknown };
-  const width = resolution.width;
-  const height = resolution.height;
-  if (!Number.isInteger(width) || !Number.isInteger(height) || (width as number) <= 0 || (height as number) <= 0) {
-    throw new Error('resolution.width and resolution.height must be positive integers');
-  }
-  return { width: width as number, height: height as number };
-}
-
-function normalizeDeviceSimulatorSettings(input: {
-  deviceId?: unknown;
-  orientation?: unknown;
-  resolution?: unknown;
-  pixelDensity?: unknown;
-  scalingMode?: unknown;
-}): DeviceSimulatorSettings {
-  const settings: DeviceSimulatorSettings = {};
-
-  if (input.deviceId !== undefined) {
-    if (typeof input.deviceId !== 'string' || input.deviceId.trim() === '') {
-      throw new Error('deviceId must be a non-empty string');
-    }
-    settings.deviceId = input.deviceId;
-  }
-
-  if (input.orientation !== undefined) {
-    if (typeof input.orientation !== 'string' || input.orientation.trim() === '') {
-      throw new Error('orientation must be a non-empty string');
-    }
-    settings.orientation = input.orientation;
-  }
-
-  const resolution = normalizeDeviceSimulatorResolution(input.resolution);
-  if (resolution !== undefined) settings.resolution = resolution;
-
-  if (input.pixelDensity !== undefined) {
-    if (typeof input.pixelDensity !== 'number' || !Number.isFinite(input.pixelDensity) || input.pixelDensity <= 0) {
-      throw new Error('pixelDensity must be a positive finite number');
-    }
-    settings.pixelDensity = input.pixelDensity;
-  }
-
-  if (input.scalingMode !== undefined) {
-    if (typeof input.scalingMode !== 'string' || input.scalingMode.trim() === '') {
-      throw new Error('scalingMode must be a non-empty string');
-    }
-    settings.scalingMode = input.scalingMode;
-  }
-
-  return settings;
-}
-
-function hasDeviceSimulatorSettings(settings: DeviceSimulatorSettings): boolean {
-  return settings.deviceId !== undefined ||
-    settings.orientation !== undefined ||
-    settings.resolution !== undefined ||
-    settings.pixelDensity !== undefined ||
-    settings.scalingMode !== undefined;
-}
-
-function buildDeviceSimulatorLuau(operation: 'get' | 'set', options: Record<string, unknown>): string {
-  const payload = JSON.stringify({ operation, ...options });
-  return `
-local HttpService = game:GetService("HttpService")
-local simulator = game:GetService("StudioDeviceSimulatorService")
-local opts = HttpService:JSONDecode(${JSON.stringify(payload)})
-
-local function plain(value)
-\tlocal valueType = typeof(value)
-\tif valueType == "Vector2" then
-\t\treturn { x = value.X, y = value.Y, width = value.X, height = value.Y }
-\tend
-\tif valueType == "EnumItem" then
-\t\treturn value.Name
-\tend
-\tif type(value) == "table" then
-\t\tlocal out = {}
-\t\tfor k, v in pairs(value) do
-\t\t\tout[tostring(k)] = plain(v)
-\t\tend
-\t\treturn out
-\tend
-\treturn value
-end
-
-local function getDeviceInfo(deviceId)
-\tlocal ok, info = pcall(function()
-\t\treturn simulator:GetDeviceInfoAsync(deviceId)
-\tend)
-\tif ok then
-\t\treturn plain(info), nil
-\tend
-\treturn nil, tostring(info)
-end
-
-local function normalizeDeviceList(rawList)
-\tlocal devices = {}
-\tlocal ids = {}
-\tfor _, entry in ipairs(rawList) do
-\t\tlocal item
-\t\tlocal id
-\t\tif type(entry) == "table" then
-\t\t\titem = plain(entry)
-\t\t\tid = item.DeviceId or item.deviceId or item.Id or item.id or item[1]
-\t\telse
-\t\t\tid = tostring(entry)
-\t\t\titem = { DeviceId = id }
-\t\tend
-\t\tif id ~= nil then
-\t\t\tid = tostring(id)
-\t\t\tlocal info = getDeviceInfo(id)
-\t\t\tif type(info) == "table" then
-\t\t\t\titem = info
-\t\t\t\tif item.DeviceId == nil then item.DeviceId = id end
-\t\t\tend
-\t\t\tif item.IsCustom ~= true then
-\t\t\t\tids[id] = true
-\t\t\t\ttable.insert(devices, item)
-\t\t\tend
-\t\tend
-\tend
-\treturn devices, ids
-end
-
-local function getDeviceList()
-\tlocal rawList = simulator:GetDeviceListAsync()
-\treturn normalizeDeviceList(rawList)
-end
-
-local function assertBuiltInDeviceExists(deviceId)
-\tlocal _, ids = getDeviceList()
-\tif ids[deviceId] then return end
-\tlocal available = {}
-\tfor id in pairs(ids) do table.insert(available, id) end
-\ttable.sort(available)
-\terror('deviceId "' .. tostring(deviceId) .. '" is not an available built-in device. Use get_device_simulator_state to list supported device IDs. Available: ' .. table.concat(available, ", "), 0)
-end
-
-local function enumByName(enumType, raw, label)
-\tlocal name = tostring(raw)
-\tname = string.match(name, "([^%.]+)$") or name
-\tlocal available = {}
-\tfor _, item in ipairs(enumType:GetEnumItems()) do
-\t\ttable.insert(available, item.Name)
-\t\tif item.Name == name then
-\t\t\treturn item, item.Name
-\t\tend
-\tend
-\terror(label .. ' "' .. tostring(raw) .. '" is not valid. Available: ' .. table.concat(available, ", "), 0)
-end
-
-local function tryActiveGetter(state, key, fn)
-\tlocal ok, value = pcall(fn)
-\tif ok then
-\t\tstate[key] = plain(value)
-\telse
-\t\tstate.unavailable = state.unavailable or {}
-\t\tstate.unavailable[key] = tostring(value)
-\tend
-end
-
-local function readState(includeDeviceList, requestedDeviceId)
-\tlocal activeDeviceId = tostring(simulator:GetDeviceAsync())
-\tlocal state = {
-\t\tactiveDeviceId = activeDeviceId,
-\t\tisSimulating = activeDeviceId ~= "default",
-\t}
-
-\tif includeDeviceList then
-\t\tlocal devices = getDeviceList()
-\t\tstate.devices = devices
-\tend
-
-\tif requestedDeviceId ~= nil then
-\t\tassertBuiltInDeviceExists(requestedDeviceId)
-\t\tstate.deviceInfo = plain(simulator:GetDeviceInfoAsync(requestedDeviceId))
-\tend
-
-\tif state.isSimulating then
-\t\ttryActiveGetter(state, "resolution", function() return simulator:GetResolutionAsync() end)
-\t\ttryActiveGetter(state, "pixelDensity", function() return simulator:GetPixelDensityAsync() end)
-\t\ttryActiveGetter(state, "orientation", function() return simulator:GetOrientationAsync() end)
-\t\ttryActiveGetter(state, "scalingMode", function() return simulator:GetScalingModeAsync() end)
-\tend
-
-\treturn state
-end
-
-local function applySettings(settings)
-\tlocal applied = {}
-\tif settings.deviceId ~= nil then
-\t\tassertBuiltInDeviceExists(settings.deviceId)
-\t\tsimulator:SetDeviceAsync(settings.deviceId)
-\t\tapplied.deviceId = settings.deviceId
-\tend
-\tif settings.orientation ~= nil then
-\t\tlocal item, name = enumByName(Enum.ScreenOrientation, settings.orientation, "orientation")
-\t\tsimulator:SetOrientationAsync(item)
-\t\tapplied.orientation = name
-\tend
-\tif settings.resolution ~= nil then
-\t\tsimulator:SetResolutionAsync(settings.resolution.width, settings.resolution.height)
-\t\tapplied.resolution = { width = settings.resolution.width, height = settings.resolution.height }
-\tend
-\tif settings.pixelDensity ~= nil then
-\t\tsimulator:SetPixelDensityAsync(settings.pixelDensity)
-\t\tapplied.pixelDensity = settings.pixelDensity
-\tend
-\tif settings.scalingMode ~= nil then
-\t\tlocal item, name = enumByName(Enum.DeviceSimulatorScalingMode, settings.scalingMode, "scalingMode")
-\t\tsimulator:SetScalingModeAsync(item)
-\t\tapplied.scalingMode = name
-\tend
-\treturn applied
-end
-
-if opts.operation == "get" then
-\treturn readState(opts.includeDeviceList ~= false, opts.deviceId)
-end
-
-if opts.operation == "set" then
-\tlocal before = readState(false, nil)
-\tlocal applied
-\tif opts.stopSimulation == true then
-\t\tsimulator:StopSimulationAsync()
-\t\tapplied = { stopSimulation = true }
-\telse
-\t\tapplied = applySettings(opts.settings or {})
-\tend
-\treturn {
-\t\tsuccess = true,
-\t\tapplied = applied,
-\t\tbefore = before,
-\t\tafter = readState(false, nil),
-\t}
-end
-
-error("Unsupported device simulator operation: " .. tostring(opts.operation), 0)
-`.trim();
-}
+import {
+  MAX_DEVICE_MATRIX_ENTRIES,
+  MAX_INLINE_IMAGE_BYTES,
+  SIMULATION_PERSISTENCE_NOTES,
+  buildDeviceSimulatorLuau,
+  buildNetworkProfileLuau,
+  buildNetworkStateLuau,
+  encodeImageFromRgbaResponse,
+  errorMessage,
+  hasDeviceSimulatorSettings,
+  normalizeDeviceSimulatorSettings,
+  normalizeNetworkProfile,
+  sleep,
+  type DeviceSimulatorMatrixEntry,
+  type DeviceSimulatorSettings,
+  type EncodedViewportCapture,
+  type RawImageCaptureResponse,
+  type SafetyOptions,
+  type SimulationInclude,
+  type ToolContent,
+} from './runtime-support.js';
 
 export class RobloxStudioTools {
   private client: StudioHttpClient;
@@ -579,9 +61,10 @@ export class RobloxStudioTools {
   private openCloudClient: OpenCloudClient;
   private cookieClient: RobloxCookieClient;
   private safety: SafetyManager;
-  private sync: SyncManager;
+  private syncTools: SyncTools;
   private marketplace: MarketplaceClient;
   private imageClient: PollinationsClient;
+  private generatedTools: GeneratedBuilderTools;
 
   constructor(bridge: BridgeService) {
     this.client = new StudioHttpClient(bridge);
@@ -589,9 +72,17 @@ export class RobloxStudioTools {
     this.openCloudClient = new OpenCloudClient();
     this.cookieClient = new RobloxCookieClient();
     this.safety = new SafetyManager();
-    this.sync = new SyncManager();
     this.marketplace = new MarketplaceClient();
     this.imageClient = new PollinationsClient();
+    this.syncTools = new SyncTools(new SyncManager(), {
+      callSingle: this._callSingle.bind(this),
+      recordOperation: (kind, summary) => this.safety.recordOperation({ kind, summary }),
+    });
+    this.generatedTools = new GeneratedBuilderTools({
+      runGeneratedLuau: this._runGeneratedLuau.bind(this),
+      safetyGate: this._safetyGate.bind(this),
+      recordOperation: (kind, summary) => this.safety.recordOperation({ kind, summary }),
+    });
   }
 
   // === Safety layer ===
@@ -682,326 +173,40 @@ export class RobloxStudioTools {
     return { content: [{ type: 'text', text: JSON.stringify(response) }] as ToolContent[] };
   }
 
-  // --- UI builder tools ---
+  // --- Generated-Luau builder domain facade ---
 
-  async uiCreateScreenGui(options: ScreenGuiOptions, instance_id?: string) {
-    if (!options?.name) throw new Error('name is required for ui_create_screen_gui');
-    const result = await this._runGeneratedLuau(buildScreenGuiLuau(options), instance_id);
-    this.safety.recordOperation({ kind: 'ui_create', summary: `ScreenGui ${options.name}` });
-    return result;
-  }
+  async uiCreateScreenGui(options: ScreenGuiOptions, instance_id?: string) { return this.generatedTools.uiCreateScreenGui(options, instance_id); }
+  async uiCreateFrame(options: GuiObjectOptions, instance_id?: string) { return this.generatedTools.uiCreateFrame(options, instance_id); }
+  async uiCreateTextLabel(options: GuiObjectOptions, instance_id?: string) { return this.generatedTools.uiCreateTextLabel(options, instance_id); }
+  async uiCreateTextButton(options: GuiObjectOptions, instance_id?: string) { return this.generatedTools.uiCreateTextButton(options, instance_id); }
+  async uiCreateImageLabel(options: GuiObjectOptions, instance_id?: string) { return this.generatedTools.uiCreateImageLabel(options, instance_id); }
+  async uiCreateImageButton(options: GuiObjectOptions, instance_id?: string) { return this.generatedTools.uiCreateImageButton(options, instance_id); }
+  async uiApplyLayout(options: LayoutOptions & { targetPath: string }, instance_id?: string) { return this.generatedTools.uiApplyLayout(options, instance_id); }
+  async uiMakeMobileFriendly(targetPath: string, instance_id?: string) { return this.generatedTools.uiMakeMobileFriendly(targetPath, instance_id); }
 
-  private async _uiCreate(className: GuiObjectClass, options: GuiObjectOptions, instance_id?: string) {
-    if (!options?.parentPath) throw new Error(`parentPath is required for ui_create_${className.toLowerCase()}`);
-    const result = await this._runGeneratedLuau(buildGuiObjectLuau(className, options), instance_id);
-    this.safety.recordOperation({ kind: 'ui_create', summary: `${className} under ${options.parentPath}` });
-    return result;
-  }
+  async environmentSetTimeOfDay(time: number | string, instance_id?: string) { return this.generatedTools.environmentSetTimeOfDay(time, instance_id); }
+  async environmentSetLightingPreset(preset: string, withPostFx?: boolean, instance_id?: string) { return this.generatedTools.environmentSetLightingPreset(preset, withPostFx, instance_id); }
+  async environmentSetAtmosphere(options: AtmospherePreset, instance_id?: string) { return this.generatedTools.environmentSetAtmosphere(options, instance_id); }
+  async environmentSetSky(options: SkyOptions, instance_id?: string) { return this.generatedTools.environmentSetSky(options, instance_id); }
+  async environmentCreateDayNightCycleScript(options: DayNightCycleOptions, instance_id?: string) { return this.generatedTools.environmentCreateDayNightCycleScript(options, instance_id); }
 
-  async uiCreateFrame(options: GuiObjectOptions, instance_id?: string) { return this._uiCreate('Frame', options, instance_id); }
-  async uiCreateTextLabel(options: GuiObjectOptions, instance_id?: string) { return this._uiCreate('TextLabel', options, instance_id); }
-  async uiCreateTextButton(options: GuiObjectOptions, instance_id?: string) { return this._uiCreate('TextButton', options, instance_id); }
-  async uiCreateImageLabel(options: GuiObjectOptions, instance_id?: string) { return this._uiCreate('ImageLabel', options, instance_id); }
-  async uiCreateImageButton(options: GuiObjectOptions, instance_id?: string) { return this._uiCreate('ImageButton', options, instance_id); }
+  async terrainGenerateBaseplate(options: BaseplateOptions & SafetyOptions, instance_id?: string) { return this.generatedTools.terrainGenerateBaseplate(options, instance_id); }
+  async terrainGenerateIsland(options: IslandOptions & SafetyOptions, instance_id?: string) { return this.generatedTools.terrainGenerateIsland(options, instance_id); }
+  async terrainGenerateMountains(options: MountainsOptions & SafetyOptions, instance_id?: string) { return this.generatedTools.terrainGenerateMountains(options, instance_id); }
+  async terrainGenerateWater(options: WaterOptions & SafetyOptions, instance_id?: string) { return this.generatedTools.terrainGenerateWater(options, instance_id); }
+  async terrainPaintMaterial(options: PaintMaterialOptions & SafetyOptions, instance_id?: string) { return this.generatedTools.terrainPaintMaterial(options, instance_id); }
+  async terrainClearRegion(options: ClearRegionOptions & SafetyOptions, instance_id?: string) { return this.generatedTools.terrainClearRegion(options, instance_id); }
 
-  async uiApplyLayout(options: LayoutOptions & { targetPath: string }, instance_id?: string) {
-    if (!options?.targetPath) throw new Error('targetPath is required for ui_apply_layout');
-    return this._runGeneratedLuau(buildApplyLayoutLuau(options.targetPath, options), instance_id);
-  }
+  async templateCreateObbyGame(options: ObbyTemplateOptions, instance_id?: string) { return this.generatedTools.templateCreateObbyGame(options, instance_id); }
+  async templateCreateSimulatorGame(options: SimulatorTemplateOptions, instance_id?: string) { return this.generatedTools.templateCreateSimulatorGame(options, instance_id); }
+  async templateCreateTycoonGame(options: TycoonTemplateOptions, instance_id?: string) { return this.generatedTools.templateCreateTycoonGame(options, instance_id); }
+  async templateCreateRoundGame(options: RoundTemplateOptions, instance_id?: string) { return this.generatedTools.templateCreateRoundGame(options, instance_id); }
 
-  async uiMakeMobileFriendly(targetPath: string, instance_id?: string) {
-    if (!targetPath) throw new Error('targetPath is required for ui_make_mobile_friendly');
-    return this._runGeneratedLuau(buildMobileFriendlyLuau(targetPath), instance_id);
-  }
+  // === Local sync facade ===
 
-  // --- Environment tools ---
-
-  async environmentSetTimeOfDay(time: number | string, instance_id?: string) {
-    if (time === undefined || time === null) throw new Error('time is required for environment_set_time_of_day');
-    return this._runGeneratedLuau(buildSetTimeOfDayLuau(time), instance_id);
-  }
-
-  async environmentSetLightingPreset(preset: string, withPostFx?: boolean, instance_id?: string) {
-    // buildLightingPresetLuau throws on an unknown preset; surface that as a
-    // clean tool result instead of a transport error.
-    let code: string;
-    try {
-      code = buildLightingPresetLuau(preset, withPostFx ?? false);
-    } catch (error) {
-      return { content: [{ type: 'text', text: errorMessage(error) }] as ToolContent[] };
-    }
-    const result = await this._runGeneratedLuau(code, instance_id);
-    this.safety.recordOperation({ kind: 'environment', summary: `lighting preset ${preset}${withPostFx ? ' +postFx' : ''}` });
-    return result;
-  }
-
-  async environmentSetAtmosphere(options: AtmospherePreset, instance_id?: string) {
-    return this._runGeneratedLuau(buildAtmosphereLuau(options ?? {}), instance_id);
-  }
-
-  async environmentSetSky(options: SkyOptions, instance_id?: string) {
-    return this._runGeneratedLuau(buildSkyLuau(options ?? {}), instance_id);
-  }
-
-  async environmentCreateDayNightCycleScript(options: DayNightCycleOptions, instance_id?: string) {
-    const result = await this._runGeneratedLuau(buildDayNightCycleScriptLuau(options ?? {}), instance_id);
-    this.safety.recordOperation({ kind: 'environment', summary: `day-night cycle script (${options?.minutesPerDay ?? 10} min/day)` });
-    return result;
-  }
-
-  // --- Terrain tools ---
-
-  private _terrainGate(volume: number, detail: string, options?: SafetyOptions): { content: ToolContent[] } | null {
-    return this._safetyGate('terrain_fill', `${detail} (~${Math.round(volume)} studs³)`, { count: volume }, options);
-  }
-
-  async terrainGenerateBaseplate(options: BaseplateOptions & SafetyOptions, instance_id?: string) {
-    if (!options?.size) throw new Error('size is required for terrain_generate_baseplate');
-    const gated = this._terrainGate(boxVolume(options.size), 'baseplate', options);
-    if (gated) return gated;
-    const result = await this._runGeneratedLuau(buildBaseplateLuau(options), instance_id);
-    this.safety.recordOperation({ kind: 'terrain', summary: `baseplate ${options.size.join('x')}` });
-    return result;
-  }
-
-  async terrainGenerateIsland(options: IslandOptions & SafetyOptions, instance_id?: string) {
-    if (!options?.radius) throw new Error('radius is required for terrain_generate_island');
-    const volume = (4 / 3) * Math.PI * Math.pow(options.radius, 3);
-    const gated = this._terrainGate(volume, 'island', options);
-    if (gated) return gated;
-    const result = await this._runGeneratedLuau(buildIslandLuau(options), instance_id);
-    this.safety.recordOperation({ kind: 'terrain', summary: `island r=${options.radius}` });
-    return result;
-  }
-
-  async terrainGenerateMountains(options: MountainsOptions & SafetyOptions, instance_id?: string) {
-    if (!options?.extent || options.maxHeight === undefined) throw new Error('extent and maxHeight are required for terrain_generate_mountains');
-    const volume = Math.abs(options.extent[0]) * Math.abs(options.extent[1]) * Math.abs(options.maxHeight);
-    const gated = this._terrainGate(volume, 'mountains', options);
-    if (gated) return gated;
-    const result = await this._runGeneratedLuau(buildMountainsLuau(options), instance_id);
-    this.safety.recordOperation({ kind: 'terrain', summary: `mountains ${options.extent.join('x')}` });
-    return result;
-  }
-
-  async terrainGenerateWater(options: WaterOptions & SafetyOptions, instance_id?: string) {
-    if (!options?.size) throw new Error('size is required for terrain_generate_water');
-    const gated = this._terrainGate(boxVolume(options.size), 'water', options);
-    if (gated) return gated;
-    const result = await this._runGeneratedLuau(buildWaterLuau(options), instance_id);
-    this.safety.recordOperation({ kind: 'terrain', summary: `water ${options.size.join('x')}` });
-    return result;
-  }
-
-  async terrainPaintMaterial(options: PaintMaterialOptions & SafetyOptions, instance_id?: string) {
-    if (!options?.min || !options?.max || !options?.material) throw new Error('min, max, and material are required for terrain_paint_material');
-    const gated = this._terrainGate(regionVolume(options.min, options.max), `paint ${options.material}`, options);
-    if (gated) return gated;
-    const result = await this._runGeneratedLuau(buildPaintMaterialLuau(options), instance_id);
-    this.safety.recordOperation({ kind: 'terrain', summary: `paint ${options.material}` });
-    return result;
-  }
-
-  async terrainClearRegion(options: ClearRegionOptions & SafetyOptions, instance_id?: string) {
-    if (!options?.min || !options?.max) throw new Error('min and max are required for terrain_clear_region');
-    const gated = this._safetyGate('terrain_clear', `clear region (~${Math.round(regionVolume(options.min, options.max))} studs³)`, { count: regionVolume(options.min, options.max) }, options);
-    if (gated) return gated;
-    const result = await this._runGeneratedLuau(buildClearRegionLuau(options), instance_id);
-    this.safety.recordOperation({ kind: 'terrain', summary: `cleared region` });
-    return result;
-  }
-
-  // --- Game-template tools ---
-  // Each scaffolds a complete starter game (geometry, services, leaderstats,
-  // gameplay scripts). Generation is idempotent, so re-running refreshes the
-  // template in place rather than duplicating it.
-
-  async templateCreateObbyGame(options: ObbyTemplateOptions, instance_id?: string) {
-    const result = await this._runGeneratedLuau(buildObbyTemplateLuau(options ?? {}), instance_id);
-    this.safety.recordOperation({ kind: 'template', summary: `obby game (${options?.checkpoints ?? 5} checkpoints)` });
-    return result;
-  }
-
-  async templateCreateSimulatorGame(options: SimulatorTemplateOptions, instance_id?: string) {
-    const result = await this._runGeneratedLuau(buildSimulatorTemplateLuau(options ?? {}), instance_id);
-    this.safety.recordOperation({ kind: 'template', summary: `simulator game (${options?.currencyName ?? 'Coins'})` });
-    return result;
-  }
-
-  async templateCreateTycoonGame(options: TycoonTemplateOptions, instance_id?: string) {
-    const result = await this._runGeneratedLuau(buildTycoonTemplateLuau(options ?? {}), instance_id);
-    this.safety.recordOperation({ kind: 'template', summary: `tycoon game` });
-    return result;
-  }
-
-  async templateCreateRoundGame(options: RoundTemplateOptions, instance_id?: string) {
-    const result = await this._runGeneratedLuau(buildRoundTemplateLuau(options ?? {}), instance_id);
-    this.safety.recordOperation({ kind: 'template', summary: `round game (${options?.roundSeconds ?? 90}s)` });
-    return result;
-  }
-
-  // === Local sync (Studio <-> files) ===
-  // Scripts mirror to suffixed Lua files (.server/.client/.module.lua) under a
-  // sync directory. A manifest (.robloxsync.json) records the source captured at
-  // the last sync so push/status can do three-way conflict detection rather than
-  // clobbering. SyncManager owns the (tested) path/conflict logic; this layer
-  // owns filesystem and Studio I/O.
-
-  private _syncManifestPath(dir: string): string {
-    return path.join(dir, '.robloxsync.json');
-  }
-
-  private _readManifest(dir: string): Record<string, string> {
-    try {
-      const raw = fs.readFileSync(this._syncManifestPath(dir), 'utf8');
-      const parsed = JSON.parse(raw);
-      return parsed && typeof parsed.paths === 'object' ? parsed.paths : {};
-    } catch {
-      return {};
-    }
-  }
-
-  private _writeManifest(dir: string, paths: Record<string, string>): void {
-    const payload = { version: 1, updatedAt: new Date().toISOString(), paths };
-    fs.writeFileSync(this._syncManifestPath(dir), JSON.stringify(payload, null, 2));
-  }
-
-  private async _dumpStudioScripts(instance_id?: string): Promise<Array<{ path: string; className: ScriptClassName; source: string }>> {
-    const response = await this._callSingle('/api/execute-luau', { code: buildDumpScriptsLuau() }, 'edit', instance_id);
-    const raw = typeof response?.returnValue === 'string' ? response.returnValue : undefined;
-    if (!raw) return [];
-    let parsed: unknown;
-    try {
-      parsed = JSON.parse(raw);
-    } catch {
-      throw new Error(`Could not parse script dump from Studio: ${raw.slice(0, 200)}`);
-    }
-    if (!Array.isArray(parsed)) return [];
-    return parsed.filter((e): e is { path: string; className: ScriptClassName; source: string } =>
-      !!e && typeof e.path === 'string' && typeof e.className === 'string' && typeof e.source === 'string'
-      && (e.className === 'Script' || e.className === 'LocalScript' || e.className === 'ModuleScript'));
-  }
-
-  private _walkLocalScripts(dir: string): Map<string, string> {
-    const out = new Map<string, string>();
-    const walk = (current: string) => {
-      let entries: fs.Dirent[];
-      try {
-        entries = fs.readdirSync(current, { withFileTypes: true });
-      } catch {
-        return;
-      }
-      for (const entry of entries) {
-        const full = path.join(current, entry.name);
-        const rel = path.relative(dir, full).split(path.sep).join('/');
-        if (entry.isDirectory()) {
-          walk(full);
-        } else if (this.sync.classNameForFile(entry.name) && !this.sync.isIgnored(rel)) {
-          out.set(rel, fs.readFileSync(full, 'utf8'));
-        }
-      }
-    };
-    walk(dir);
-    return out;
-  }
-
-  private _resolveSyncDir(syncDir?: string): string {
-    return path.resolve(syncDir ?? process.env.ROBLOX_SYNC_DIR ?? path.join(process.cwd(), 'roblox-src'));
-  }
-
-  async syncPull(syncDir?: string, instance_id?: string) {
-    const dir = this._resolveSyncDir(syncDir);
-    const scripts = await this._dumpStudioScripts(instance_id);
-    fs.mkdirSync(dir, { recursive: true });
-    const manifest: Record<string, string> = {};
-    let written = 0;
-    let skipped = 0;
-    for (const script of scripts) {
-      const rel = this.sync.instancePathToFilePath(script.path, script.className);
-      if (this.sync.isIgnored(rel)) { skipped++; continue; }
-      const full = path.join(dir, rel);
-      fs.mkdirSync(path.dirname(full), { recursive: true });
-      fs.writeFileSync(full, script.source);
-      manifest[rel] = script.source;
-      written++;
-    }
-    this._writeManifest(dir, manifest);
-    this.safety.recordOperation({ kind: 'sync_pull', summary: `pulled ${written} scripts to ${dir}` });
-    return { content: [{ type: 'text', text: JSON.stringify({ pulled: written, skipped, dir }) }] as ToolContent[] };
-  }
-
-  async syncStatus(syncDir?: string, instance_id?: string) {
-    const dir = this._resolveSyncDir(syncDir);
-    const studio = new Map(
-      (await this._dumpStudioScripts(instance_id)).map((s) => [this.sync.instancePathToFilePath(s.path, s.className), s.source] as const),
-    );
-    const local = this._walkLocalScripts(dir);
-    const base = this._readManifest(dir);
-    const rels = new Set<string>([...studio.keys(), ...local.keys(), ...Object.keys(base)]);
-    const groups: Record<string, string[]> = { local: [], studio: [], both: [], none: [] };
-    for (const rel of rels) {
-      if (this.sync.isIgnored(rel)) continue;
-      const kind = this.sync.detectConflict({ local: local.get(rel), base: base[rel], studio: studio.get(rel) });
-      groups[kind].push(rel);
-    }
-    return {
-      content: [{
-        type: 'text',
-        text: JSON.stringify({
-          dir,
-          localOnlyChanges: groups.local,
-          studioOnlyChanges: groups.studio,
-          conflicts: groups.both,
-          inSync: groups.none.length,
-        }, null, 2),
-      }] as ToolContent[],
-    };
-  }
-
-  async syncPush(syncDir?: string, instance_id?: string, options?: SafetyOptions) {
-    const dir = this._resolveSyncDir(syncDir);
-    const studio = new Map(
-      (await this._dumpStudioScripts(instance_id)).map((s) => [this.sync.instancePathToFilePath(s.path, s.className), { source: s.source, path: s.path }] as const),
-    );
-    const local = this._walkLocalScripts(dir);
-    const base = this._readManifest(dir);
-    const pushed: string[] = [];
-    const conflicts: string[] = [];
-    const wouldPush: string[] = [];
-
-    for (const [rel, content] of local) {
-      if (this.sync.isIgnored(rel)) continue;
-      const studioEntry = studio.get(rel);
-      const kind = this.sync.detectConflict({ local: content, base: base[rel], studio: studioEntry?.source });
-      if (kind === 'none' || kind === 'studio') continue; // nothing local to push, or studio is authoritative
-      if (kind === 'both') { conflicts.push(rel); continue; }
-      // kind === 'local' — safe to push
-      const mapped = this.sync.filePathToInstancePath(rel);
-      if (!mapped) continue;
-      if (options?.dryRun) { wouldPush.push(rel); continue; }
-      await this._callSingle('/api/set-script-source', { instancePath: mapped.instancePath, source: content }, undefined, instance_id);
-      base[rel] = content;
-      pushed.push(rel);
-    }
-
-    if (!options?.dryRun && pushed.length > 0) {
-      this._writeManifest(dir, base);
-      this.safety.recordOperation({ kind: 'sync_push', summary: `pushed ${pushed.length} scripts from ${dir}` });
-    }
-
-    return {
-      content: [{
-        type: 'text',
-        text: JSON.stringify({
-          dir,
-          dryRun: options?.dryRun === true,
-          pushed: options?.dryRun ? wouldPush : pushed,
-          conflictsSkipped: conflicts,
-          hint: conflicts.length > 0 ? 'Conflicts changed on both sides; resolve manually then re-run, or sync_pull to take Studio.' : undefined,
-        }, null, 2),
-      }] as ToolContent[],
-    };
-  }
+  async syncPull(syncDir?: string, instance_id?: string) { return this.syncTools.syncPull(syncDir, instance_id); }
+  async syncStatus(syncDir?: string, instance_id?: string) { return this.syncTools.syncStatus(syncDir, instance_id); }
+  async syncPush(syncDir?: string, instance_id?: string, options?: SafetyOptions) { return this.syncTools.syncPush(syncDir, instance_id, options); }
 
   // Resolve (instance_id, target-role) → concrete (instanceId, role) and
   // dispatch a single request. Throws RoutingFailure if the resolution is
@@ -1465,13 +670,13 @@ export class RobloxStudioTools {
     };
   }
 
-  async searchObjects(query: string, searchType: string = 'name', propertyName?: string, instance_id?: string) {
+  async searchObjects(query: string, searchType: string = 'name', propertyName?: string, limit?: number, offset?: number, fields?: string[], instance_id?: string) {
     const response = await this._callSingle('/api/search-objects', {
       query,
       searchType,
       propertyName
     }, undefined, instance_id);
-    return compactText(response);
+    return compactText(shapeListResponse(response, 'results', { limit, offset, fields }));
   }
 
 
@@ -1479,7 +684,10 @@ export class RobloxStudioTools {
     if (!instancePath) {
       throw new Error('Instance path is required for get_instance_properties');
     }
-    const response = await this._callSingle('/api/instance-properties', { instancePath, excludeSource }, undefined, instance_id);
+    // Default to excluding Source: a script's Source can be thousands of tokens and
+    // there's a dedicated get_script_source for reading it. Callers can opt back in
+    // with excludeSource: false.
+    const response = await this._callSingle('/api/instance-properties', { instancePath, excludeSource: excludeSource ?? true }, undefined, instance_id);
     return compactText(response);
   }
 
@@ -4169,12 +3377,27 @@ export class RobloxStudioTools {
     return { content: [{ type: 'text', text: JSON.stringify(response) }] };
   }
 
-  async getDescendants(instancePath: string, maxDepth?: number, classFilter?: string, instance_id?: string) {
+  async getDescendants(
+    instancePath: string,
+    maxDepth?: number,
+    classFilter?: string,
+    limit?: number,
+    offset?: number,
+    fields?: string[],
+    instance_id?: string,
+  ) {
     if (!instancePath) {
       throw new Error('instancePath is required for get_descendants');
     }
     const response = await this._callSingle('/api/get-descendants', { instancePath, maxDepth, classFilter }, undefined, instance_id);
-    return compactText(response);
+    return compactText(shapeListResponse(response, 'descendants', { limit, offset, fields }));
+  }
+
+  async getSceneSummary(instancePath?: string, topN?: number, instance_id?: string) {
+    // Aggregation: counts descendants by class instead of dumping the whole tree —
+    // a few tokens to understand a scene's shape vs thousands for get_descendants.
+    const code = buildSceneSummaryLuau(instancePath ?? 'game.Workspace', topN ?? 20);
+    return this._runGeneratedLuau(code, instance_id);
   }
 
   async compareInstances(instancePathA: string, instancePathB: string, instance_id?: string) {

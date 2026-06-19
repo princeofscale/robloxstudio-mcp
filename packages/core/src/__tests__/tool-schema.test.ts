@@ -1,4 +1,12 @@
 import { TOOL_DEFINITIONS } from '../tools/definitions.js';
+import { ASSET_TOOL_DEFINITIONS } from '../tools/definitions/assets.js';
+import { BROWSING_TOOL_DEFINITIONS } from '../tools/definitions/browsing.js';
+import { BUILD_TOOL_DEFINITIONS } from '../tools/definitions/builds.js';
+import { GENERATED_TOOL_DEFINITIONS } from '../tools/definitions/generated.js';
+import { MUTATION_TOOL_DEFINITIONS } from '../tools/definitions/mutation.js';
+import { SCENE_TOOL_DEFINITIONS } from '../tools/definitions/scene.js';
+import { RUNTIME_TOOL_DEFINITIONS } from '../tools/definitions/runtime.js';
+import { SCRIPTING_TOOL_DEFINITIONS } from '../tools/definitions/scripting.js';
 import { TOOL_HANDLERS } from '../http-server.js';
 import { RobloxStudioTools } from '../tools/index.js';
 import { BridgeService } from '../bridge-service.js';
@@ -32,6 +40,21 @@ function collectArraySchemasMissingItems(schema: unknown, path: string, out: str
 }
 
 describe('Tool schema compatibility', () => {
+  test('domain definition modules compose TOOL_DEFINITIONS in canonical order', () => {
+    const grouped = [
+      ...BROWSING_TOOL_DEFINITIONS,
+      ...MUTATION_TOOL_DEFINITIONS,
+      ...SCRIPTING_TOOL_DEFINITIONS,
+      ...RUNTIME_TOOL_DEFINITIONS,
+      ...BUILD_TOOL_DEFINITIONS,
+      ...ASSET_TOOL_DEFINITIONS,
+      ...SCENE_TOOL_DEFINITIONS,
+      ...GENERATED_TOOL_DEFINITIONS,
+    ];
+    expect(grouped.map((tool) => tool.name)).toEqual(TOOL_DEFINITIONS.map((tool) => tool.name));
+    expect(grouped).toEqual(TOOL_DEFINITIONS);
+  });
+
   test('every array schema declares items', () => {
     const missing: string[] = [];
     for (const tool of TOOL_DEFINITIONS) {
@@ -166,6 +189,7 @@ describe('Tool schema compatibility', () => {
       preview_asset: 'previewAsset',
       clone_object: 'cloneObject',
       get_descendants: 'getDescendants',
+      get_scene_summary: 'getSceneSummary',
       compare_instances: 'compareInstances',
       get_output_log: 'getOutputLog',
       bulk_set_attributes: 'bulkSetAttributes',
