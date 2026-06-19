@@ -99,7 +99,26 @@ function atmosphereLines(target: string, atm: AtmospherePreset): string[] {
   return lines;
 }
 
-export function buildLightingPresetLuau(preset: string): string {
+// Named, idempotent post-processing effects for a polished "simulator" look.
+// Each is created only if absent (looked up by name) so re-applying a preset
+// doesn't stack duplicates.
+function postFxLines(): string[] {
+  return [
+    'pcall(function() Lighting.Technology = Enum.Technology.Future end)',
+    'Lighting.GlobalShadows = true',
+    'local function ensureFx(className, name, props)',
+    '\tlocal fx = Lighting:FindFirstChild(name)',
+    '\tif not fx then fx = Instance.new(className); fx.Name = name; fx.Parent = Lighting end',
+    '\tfor k, v in pairs(props) do fx[k] = v end',
+    '\treturn fx',
+    'end',
+    'ensureFx("BloomEffect", "PresetBloom", { Intensity = 0.45, Size = 24, Threshold = 1.15 })',
+    'ensureFx("ColorCorrectionEffect", "PresetColor", { Saturation = 0.15, Contrast = 0.05, Brightness = 0 })',
+    'ensureFx("SunRaysEffect", "PresetSunRays", { Intensity = 0.08, Spread = 0.35 })',
+  ];
+}
+
+export function buildLightingPresetLuau(preset: string, withPostFx = false): string {
   const config = LIGHTING_PRESETS[preset];
   if (!config) {
     throw new Error(`Unknown preset "${preset}". Available: ${getLightingPresetNames().join(', ')}`);
@@ -116,7 +135,8 @@ export function buildLightingPresetLuau(preset: string): string {
   if (config.fogStart !== undefined) lines.push(`Lighting.FogStart = ${luaNumber(config.fogStart)}`);
   if (config.colorShiftTop) lines.push(`Lighting.ColorShift_Top = ${color3FromRGB(...config.colorShiftTop)}`);
   if (config.atmosphere) lines.push(...atmosphereLines('Lighting', config.atmosphere));
-  lines.push(`return { preset = ${luaString(preset)}, success = true }`);
+  if (withPostFx) lines.push(...postFxLines());
+  lines.push(`return { preset = ${luaString(preset)}, postFx = ${withPostFx ? 'true' : 'false'}, success = true }`);
   return lines.join('\n');
 }
 

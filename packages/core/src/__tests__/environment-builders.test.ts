@@ -47,6 +47,20 @@ describe('buildLightingPresetLuau', () => {
     const code = buildLightingPresetLuau('cyberpunk');
     expect(code).toContain('Atmosphere');
   });
+  it('does not add post-processing effects by default', () => {
+    const code = buildLightingPresetLuau('simulator');
+    expect(code).not.toContain('BloomEffect');
+    expect(code).not.toContain('Technology.Future');
+  });
+  it('adds idempotent post-FX and Future lighting when withPostFx is true', () => {
+    const code = buildLightingPresetLuau('simulator', true);
+    expect(code).toContain('BloomEffect');
+    expect(code).toContain('ColorCorrectionEffect');
+    expect(code).toContain('SunRaysEffect');
+    expect(code).toContain('Technology.Future');
+    // idempotent: looks up by name before creating
+    expect(code).toContain('FindFirstChild');
+  });
 });
 
 describe('buildAtmosphereLuau', () => {

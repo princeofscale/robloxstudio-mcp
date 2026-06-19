@@ -2614,11 +2614,12 @@ part(0,2,0,2,1,1,"b")`,
   {
     name: 'environment_set_lighting_preset',
     category: 'write',
-    description: 'Apply a named lighting preset: sunny, sunset, night, horror, cyberpunk, obby, simulator, realistic.',
+    description: 'Apply a named lighting preset: sunny, sunset, night, horror, cyberpunk, obby, simulator, realistic. Set withPostFx for a polished look (Future lighting + idempotent Bloom/ColorCorrection/SunRays).',
     inputSchema: {
       type: 'object',
       properties: {
         preset: { type: 'string', enum: ['sunny', 'sunset', 'night', 'horror', 'cyberpunk', 'obby', 'simulator', 'realistic'], description: 'Preset name.' },
+        withPostFx: { type: 'boolean', description: 'Also enable Future lighting + add named, idempotent Bloom/ColorCorrection/SunRays effects (default false).' },
         instance_id: INSTANCE_ID_PROP,
       },
       required: ['preset'],

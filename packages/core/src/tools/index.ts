@@ -50,6 +50,8 @@ import {
 import { SyncManager, ScriptClassName } from '../sync/sync-manager.js';
 import { buildDumpScriptsLuau } from '../sync/sync-luau.js';
 import { MarketplaceClient } from '../marketplace-client.js';
+import { interpretInsertResponse } from '../assets.js';
+import { typedError, responseErrorCode } from '../errors.js';
 import {
   buildCreateSoundLuau,
   buildPlaySoundLuau,
@@ -718,17 +720,17 @@ export class RobloxStudioTools {
     return this._runGeneratedLuau(buildSetTimeOfDayLuau(time), instance_id);
   }
 
-  async environmentSetLightingPreset(preset: string, instance_id?: string) {
+  async environmentSetLightingPreset(preset: string, withPostFx?: boolean, instance_id?: string) {
     // buildLightingPresetLuau throws on an unknown preset; surface that as a
     // clean tool result instead of a transport error.
     let code: string;
     try {
-      code = buildLightingPresetLuau(preset);
+      code = buildLightingPresetLuau(preset, withPostFx ?? false);
     } catch (error) {
       return { content: [{ type: 'text', text: errorMessage(error) }] as ToolContent[] };
     }
     const result = await this._runGeneratedLuau(code, instance_id);
-    this.safety.recordOperation({ kind: 'environment', summary: `lighting preset ${preset}` });
+    this.safety.recordOperation({ kind: 'environment', summary: `lighting preset ${preset}${withPostFx ? ' +postFx' : ''}` });
     return result;
   }
 
@@ -1505,7 +1507,14 @@ export class RobloxStudioTools {
     if (!instancePath) {
       throw new Error('Instance path is required for get_instance_children');
     }
-    const response = await this._callSingle('/api/instance-children', { instancePath }, undefined, instance_id);
+    // The plugin's file watcher debounces ~500ms behind edits, so a path that was
+    // just created can briefly read back as NOT_FOUND (bug B3/B5). Retry once after
+    // a short delay before surfacing the failure.
+    let response = await this._callSingle('/api/instance-children', { instancePath }, undefined, instance_id);
+    if (responseErrorCode(response) === 'NOT_FOUND') {
+      await sleep(450);
+      response = await this._callSingle('/api/instance-children', { instancePath }, undefined, instance_id);
+    }
     return {
       content: [
         {
@@ -3802,6 +3811,20 @@ export class RobloxStudioTools {
       parentPath: parentPath || 'game.Workspace',
       position
     }, undefined, instance_id);
+    const outcome = interpretInsertResponse(response);
+    if (!outcome.ok) {
+      const hint = outcome.code === 'AUTH'
+        ? 'This asset is copy-locked: InsertService can only load assets you own or that are public + copy-enabled. Pick a free/owned asset (e.g. via marketplace_search, which ranks insertable candidates) and try another id.'
+        : outcome.code === 'NOT_FOUND'
+          ? `Parent path "${parentPath || 'game.Workspace'}" did not resolve. Verify it with get_instance_children before inserting.`
+          : undefined;
+      return {
+        content: [{
+          type: 'text',
+          text: JSON.stringify({ ...typedError(outcome.message ?? 'Insert failed', outcome.code), inserted: false, hint, response }),
+        }],
+      };
+    }
     return {
       content: [{
         type: 'text',
@@ -3874,17 +3897,46 @@ export class RobloxStudioTools {
     if (results.length === 0) {
       return { content: [{ type: 'text', text: JSON.stringify({ inserted: false, reason: `No marketplace results for "${keyword}".` }) }] as ToolContent[] };
     }
-    const chosen = results[0];
-    const response = await this._callSingle('/api/insert-asset', {
-      assetId: chosen.id,
-      parentPath: parentPath || 'game.Workspace',
-      position,
-    }, undefined, instance_id);
-    this.safety.recordOperation({ kind: 'marketplace_insert', summary: `inserted "${chosen.name}" (${chosen.id})` });
+    // Results are already ranked best-fit-first. Many toolbox models are
+    // copy-locked (InsertService AUTH); walk the candidates and insert the first
+    // that actually loads, rather than failing on a single locked hit.
+    const attempts: Array<{ id: number; name: string; code?: string }> = [];
+    for (const chosen of results) {
+      const response = await this._callSingle('/api/insert-asset', {
+        assetId: chosen.id,
+        parentPath: parentPath || 'game.Workspace',
+        position,
+      }, undefined, instance_id);
+      const outcome = interpretInsertResponse(response);
+      if (outcome.ok) {
+        this.safety.recordOperation({ kind: 'marketplace_insert', summary: `inserted "${chosen.name}" (${chosen.id})` });
+        return {
+          content: [{
+            type: 'text',
+            text: JSON.stringify({
+              inserted: true,
+              asset: chosen,
+              triedBeforeSuccess: attempts,
+              alternatives: results.filter((r) => r.id !== chosen.id),
+              response,
+            }),
+          }] as ToolContent[],
+        };
+      }
+      attempts.push({ id: chosen.id, name: chosen.name, code: outcome.code });
+      // Stop early on non-asset problems (e.g. bad parent) — retrying other ids won't help.
+      if (outcome.code === 'NOT_FOUND') break;
+    }
     return {
       content: [{
         type: 'text',
-        text: JSON.stringify({ inserted: true, asset: chosen, alternatives: results.slice(1), response }),
+        text: JSON.stringify({
+          inserted: false,
+          reason: `None of the ${attempts.length} ranked candidate(s) for "${keyword}" could be inserted (mostly copy-locked / auth-blocked).`,
+          tried: attempts,
+          candidates: results,
+          hint: 'Toolbox models are often copy-locked. Try a different keyword, or pick a result you own / that is public+copy-enabled.',
+        }),
       }] as ToolContent[],
     };
   }

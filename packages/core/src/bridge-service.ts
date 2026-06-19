@@ -126,6 +126,28 @@ export function toPublic(inst: PluginInstance): PublicPluginInstance {
 const STALE_INSTANCE_MS = 30000;
 const INSTANCE_ALIAS_TTL_MS = 5 * 60 * 1000;
 
+// Base bridge request timeout. Heavy plugin work (big execute-luau scripts that
+// build/scatter hundreds of parts) routinely runs longer than the default, which
+// caused false "Request timeout" errors even though the plugin was still working
+// (bug B4). Configurable via MCP_REQUEST_TIMEOUT_MS; heavy endpoints get a higher
+// floor via resolveRequestTimeout.
+const DEFAULT_REQUEST_TIMEOUT_MS = 30000;
+const HEAVY_REQUEST_TIMEOUT_FLOOR_MS = 120000;
+// Endpoints whose plugin-side work can legitimately take a long time.
+const HEAVY_ENDPOINTS = ['/api/execute-luau', '/api/generate-build', '/api/import-scene'];
+
+export function resolveRequestTimeout(endpoint: string, baseMs: number): number {
+  if (HEAVY_ENDPOINTS.some((e) => endpoint.startsWith(e))) {
+    return Math.max(baseMs, HEAVY_REQUEST_TIMEOUT_FLOOR_MS);
+  }
+  return baseMs;
+}
+
+function envRequestTimeout(): number {
+  const raw = Number(process.env.MCP_REQUEST_TIMEOUT_MS);
+  return Number.isFinite(raw) && raw > 0 ? raw : DEFAULT_REQUEST_TIMEOUT_MS;
+}
+
 interface InstanceAlias {
   targetInstanceId: string;
   lastSeen: number;
@@ -141,7 +163,7 @@ export class BridgeService {
   // Keyed by pluginSessionId (the per-plugin GUID).
   private instances: Map<string, PluginInstance> = new Map();
   private instanceAliases: Map<string, InstanceAlias> = new Map();
-  private requestTimeout = 30000;
+  private requestTimeout = envRequestTimeout();
 
   private canonicalInstanceId(instanceId: string, placeId?: number): string {
     return publishedInstanceId(placeId) ?? instanceId;
@@ -507,14 +529,17 @@ export class BridgeService {
     targetRole: string,
   ): Promise<any> {
     const requestId = uuidv4();
+    const effectiveTimeout = resolveRequestTimeout(endpoint, this.requestTimeout);
 
     return new Promise((resolve, reject) => {
       const timeoutId = setTimeout(() => {
         if (this.pendingRequests.has(requestId)) {
           this.pendingRequests.delete(requestId);
-          reject(new Error('Request timeout'));
+          reject(new Error(
+            `Request timeout after ${effectiveTimeout}ms on ${endpoint}. The plugin may still be running heavy code — the work can succeed even though this call gave up. Raise MCP_REQUEST_TIMEOUT_MS for big scripts.`,
+          ));
         }
-      }, this.requestTimeout);
+      }, effectiveTimeout);
 
       const request: PendingRequest = {
         id: requestId,
@@ -583,7 +608,7 @@ export class BridgeService {
   cleanupOldRequests() {
     const now = Date.now();
     for (const [id, request] of this.pendingRequests.entries()) {
-      if (now - request.timestamp > this.requestTimeout) {
+      if (now - request.timestamp > resolveRequestTimeout(request.endpoint, this.requestTimeout)) {
         clearTimeout(request.timeoutId);
         this.pendingRequests.delete(id);
         request.reject(new Error('Request timeout'));

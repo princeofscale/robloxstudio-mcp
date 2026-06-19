@@ -52,4 +52,88 @@ describe('MarketplaceClient.parseSearchResults', () => {
     expect(client.parseSearchResults({})).toEqual([]);
     expect(client.parseSearchResults(null)).toEqual([]);
   });
+
+  it('always attaches a viewable thumbnail URL per result', () => {
+    const results = client.parseSearchResults({ data: [{ id: 123, name: 'Cool Car' }] });
+    expect(results[0].thumbnailUrl).toContain('123');
+    expect(results[0].thumbnailUrl).toMatch(/^https?:\/\//);
+  });
+});
+
+describe('MarketplaceClient.buildThumbnailUrl', () => {
+  const client = new MarketplaceClient();
+  it('builds a direct asset-thumbnail image URL for an id', () => {
+    const url = client.buildThumbnailUrl(987);
+    expect(url).toMatch(/^https?:\/\//);
+    expect(url).toContain('987');
+  });
+});
+
+describe('MarketplaceClient.buildDetailsUrl', () => {
+  const client = new MarketplaceClient();
+  it('builds an items/details URL with comma-joined asset ids', () => {
+    const url = client.buildDetailsUrl([1, 2, 3]);
+    expect(url).toContain('/items/details');
+    expect(url).toContain('assetIds=1%2C2%2C3');
+  });
+});
+
+describe('MarketplaceClient.parseDetails', () => {
+  const client = new MarketplaceClient();
+
+  it('maps id -> enriched fields (name, creator, votes, price, isFree)', () => {
+    const map = client.parseDetails({
+      data: [
+        {
+          asset: { id: 55, name: 'Oak Tree', assetTypeId: 10, description: 'A tree' },
+          creator: { name: 'Roblox' },
+          voting: { upVotes: 90, downVotes: 10 },
+          product: { price: 0, isForSale: false },
+        },
+      ],
+    });
+    expect(map.get(55)).toMatchObject({
+      name: 'Oak Tree',
+      creatorName: 'Roblox',
+      description: 'A tree',
+      favoriteCount: 90,
+      price: 0,
+      isFree: true,
+    });
+  });
+
+  it('treats a positive price as not free', () => {
+    const map = client.parseDetails({ data: [{ asset: { id: 7 }, product: { price: 25 } }] });
+    expect(map.get(7)).toMatchObject({ price: 25, isFree: false });
+  });
+
+  it('returns an empty map for junk', () => {
+    expect(client.parseDetails(null).size).toBe(0);
+    expect(client.parseDetails({}).size).toBe(0);
+  });
+});
+
+describe('MarketplaceClient.rankByRelevanceAndPopularity', () => {
+  const client = new MarketplaceClient();
+  it('keeps name-matching results above popular-but-irrelevant ones', () => {
+    const ranked = client.rankByRelevanceAndPopularity(
+      [
+        { id: 1, name: 'Random Rock', favoriteCount: 9999 },
+        { id: 2, name: 'Low Poly Tree', favoriteCount: 5 },
+      ],
+      'tree',
+    );
+    expect(ranked[0].id).toBe(2);
+  });
+
+  it('breaks ties by popularity', () => {
+    const ranked = client.rankByRelevanceAndPopularity(
+      [
+        { id: 1, name: 'Tree A', favoriteCount: 10 },
+        { id: 2, name: 'Tree B', favoriteCount: 800 },
+      ],
+      'tree',
+    );
+    expect(ranked[0].id).toBe(2);
+  });
 });

@@ -1,4 +1,18 @@
-import { BridgeService } from '../bridge-service.js';
+import { BridgeService, resolveRequestTimeout } from '../bridge-service.js';
+
+describe('resolveRequestTimeout', () => {
+  it('keeps the base timeout for ordinary endpoints', () => {
+    expect(resolveRequestTimeout('/api/get-instance-children', 30000)).toBe(30000);
+  });
+
+  it('grants a longer floor to heavy execute-luau requests', () => {
+    expect(resolveRequestTimeout('/api/execute-luau', 30000)).toBeGreaterThanOrEqual(120000);
+  });
+
+  it('never shortens a base that is already larger than the heavy floor', () => {
+    expect(resolveRequestTimeout('/api/execute-luau', 300000)).toBe(300000);
+  });
+});
 
 class MirroredBridgeService extends BridgeService {
   constructor(private readonly mirroredInstances: ReturnType<BridgeService['getInstances']>) {

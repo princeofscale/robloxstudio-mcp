@@ -137,7 +137,7 @@ export const TOOL_HANDLERS: Record<string, ToolHandler> = {
 
   // Environment tools.
   environment_set_time_of_day: (tools, body) => tools.environmentSetTimeOfDay(body.time, body.instance_id),
-  environment_set_lighting_preset: (tools, body) => tools.environmentSetLightingPreset(body.preset, body.instance_id),
+  environment_set_lighting_preset: (tools, body) => tools.environmentSetLightingPreset(body.preset, body.withPostFx, body.instance_id),
   environment_set_atmosphere: (tools, body) => tools.environmentSetAtmosphere(body, body.instance_id),
   environment_set_sky: (tools, body) => tools.environmentSetSky(body, body.instance_id),
   environment_create_day_night_cycle_script: (tools, body) => tools.environmentCreateDayNightCycleScript(body, body.instance_id),

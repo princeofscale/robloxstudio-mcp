@@ -57,21 +57,35 @@ function dropOldestUntilFits(incomingBytes: number): void {
 	}
 }
 
+function pushEntry(message: string, level: LogLevel, ts: number): void {
+	const bytes = message.size();
+	dropOldestUntilFits(bytes);
+	entries.push({ seq: nextSeq, ts, level, message });
+	nextSeq += 1;
+	totalBytes += bytes;
+}
+
+// Backfill the buffer with logs already emitted before this listener attached.
+// In ordinary Studio Play the server/client DMs start (and print, e.g. a game's
+// startup banner) before the plugin peer's MessageOut listener connects, so those
+// entries were lost (bug B8). GetLogHistory recovers them on install.
+function seedFromHistory(): void {
+	const [ok, history] = pcall(() => LogService.GetLogHistory());
+	if (!ok || !history) return;
+	for (const info of history as Array<{ message: string; messageType: Enum.MessageType; timestamp: number }>) {
+		if (info && typeIs(info.message, "string")) {
+			pushEntry(info.message, levelTag(info.messageType), info.timestamp ?? nowSec());
+		}
+	}
+}
+
 function install(): void {
 	if (installed) return;
 	if (!RunService.IsStudio()) return;
 	installed = true;
+	seedFromHistory();
 	LogService.MessageOut.Connect((msg, t) => {
-		const bytes = msg.size();
-		dropOldestUntilFits(bytes);
-		entries.push({
-			seq: nextSeq,
-			ts: nowSec(),
-			level: levelTag(t),
-			message: msg,
-		});
-		nextSeq += 1;
-		totalBytes += bytes;
+		pushEntry(msg, levelTag(t), nowSec());
 	});
 }
 
