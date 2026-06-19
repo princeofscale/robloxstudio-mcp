@@ -52,6 +52,7 @@ import { buildDumpScriptsLuau } from '../sync/sync-luau.js';
 import { MarketplaceClient } from '../marketplace-client.js';
 import { interpretInsertResponse } from '../assets.js';
 import { typedError, responseErrorCode } from '../errors.js';
+import { compactText } from '../compact.js';
 import {
   buildCreateSoundLuau,
   buildPlaySoundLuau,
@@ -1424,14 +1425,7 @@ export class RobloxStudioTools {
 
   async getFileTree(path: string = '', instance_id?: string) {
     const response = await this._callSingle('/api/file-tree', { path }, undefined, instance_id);
-    return {
-      content: [
-        {
-          type: 'text',
-          text: JSON.stringify(response)
-        }
-      ]
-    };
+    return compactText(response);
   }
 
   async searchFiles(query: string, searchType: string = 'name', instance_id?: string) {
@@ -1477,14 +1471,7 @@ export class RobloxStudioTools {
       searchType,
       propertyName
     }, undefined, instance_id);
-    return {
-      content: [
-        {
-          type: 'text',
-          text: JSON.stringify(response)
-        }
-      ]
-    };
+    return compactText(response);
   }
 
 
@@ -1493,14 +1480,7 @@ export class RobloxStudioTools {
       throw new Error('Instance path is required for get_instance_properties');
     }
     const response = await this._callSingle('/api/instance-properties', { instancePath, excludeSource }, undefined, instance_id);
-    return {
-      content: [
-        {
-          type: 'text',
-          text: JSON.stringify(response)
-        }
-      ]
-    };
+    return compactText(response);
   }
 
   async getInstanceChildren(instancePath: string, instance_id?: string) {
@@ -1515,14 +1495,7 @@ export class RobloxStudioTools {
       await sleep(450);
       response = await this._callSingle('/api/instance-children', { instancePath }, undefined, instance_id);
     }
-    return {
-      content: [
-        {
-          type: 'text',
-          text: JSON.stringify(response)
-        }
-      ]
-    };
+    return compactText(response);
   }
 
   async searchByProperty(propertyName: string, propertyValue: string, instance_id?: string) {
@@ -1565,14 +1538,7 @@ export class RobloxStudioTools {
       maxDepth,
       scriptsOnly
     }, undefined, instance_id);
-    return {
-      content: [
-        {
-          type: 'text',
-          text: JSON.stringify(response)
-        }
-      ]
-    };
+    return compactText(response);
   }
 
 
@@ -1631,14 +1597,7 @@ export class RobloxStudioTools {
       paths,
       propertyName
     }, undefined, instance_id);
-    return {
-      content: [
-        {
-          type: 'text',
-          text: JSON.stringify(response)
-        }
-      ]
-    };
+    return compactText(response);
   }
 
 
@@ -2046,14 +2005,7 @@ export class RobloxStudioTools {
 
   async getSelection(instance_id?: string) {
     const response = await this._callSingle('/api/get-selection', {}, undefined, instance_id);
-    return {
-      content: [
-        {
-          type: 'text',
-          text: JSON.stringify(response)
-        }
-      ]
-    };
+    return compactText(response);
   }
 
   async executeLuau(code: string, target?: string, instance_id?: string, options?: SafetyOptions) {
@@ -4222,7 +4174,7 @@ export class RobloxStudioTools {
       throw new Error('instancePath is required for get_descendants');
     }
     const response = await this._callSingle('/api/get-descendants', { instancePath, maxDepth, classFilter }, undefined, instance_id);
-    return { content: [{ type: 'text', text: JSON.stringify(response) }] };
+    return compactText(response);
   }
 
   async compareInstances(instancePathA: string, instancePathB: string, instance_id?: string) {
@@ -4230,7 +4182,7 @@ export class RobloxStudioTools {
       throw new Error('instancePathA and instancePathB are required for compare_instances');
     }
     const response = await this._callSingle('/api/compare-instances', { instancePathA, instancePathB }, undefined, instance_id);
-    return { content: [{ type: 'text', text: JSON.stringify(response) }] };
+    return compactText(response);
   }
 
   async getOutputLog(maxEntries?: number, messageType?: string, instance_id?: string) {
@@ -4293,7 +4245,7 @@ export class RobloxStudioTools {
         resolved.targetInstanceId,
         resolved.targetRole,
       );
-      return { content: [{ type: 'text', text: JSON.stringify(response) }] };
+      return compactText(response);
     }
 
     const targets = resolved.targets.filter((t) => t.targetRole !== 'edit-proxy');
@@ -4321,7 +4273,7 @@ export class RobloxStudioTools {
       }
     }
 
-    return { content: [{ type: 'text', text: JSON.stringify(body) }] };
+    return compactText(body);
   }
 
   async getSceneAnalysis(mode?: string, target?: string, topN?: number, raw?: boolean, instance_id?: string) {
@@ -4341,7 +4293,7 @@ export class RobloxStudioTools {
         resolved.targetInstanceId,
         resolved.targetRole,
       );
-      return { content: [{ type: 'text', text: JSON.stringify(response) }] };
+      return compactText(response);
     }
 
     const targets = resolved.targets.filter((t) => t.targetRole !== 'edit-proxy');
@@ -4369,7 +4321,7 @@ export class RobloxStudioTools {
       }
     }
 
-    return { content: [{ type: 'text', text: JSON.stringify(body) }] };
+    return compactText(body);
   }
 
   async exportRbxm(instancePaths: string[], outputPath: string, target?: string, instance_id?: string) {

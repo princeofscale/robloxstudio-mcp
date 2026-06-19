@@ -25,6 +25,25 @@ Bugs are detailed in [bugs.md](./bugs.md). Game-specific notes live in the Studi
 - [x] **Lighting presets + post-FX** — `environment_set_lighting_preset(withPostFx)` adds
       Future + idempotent Bloom/ColorCorrection/SunRays (B7).
 
+## 🪙 Token / agent efficiency (less water, more signal)
+Two costs (per MCP research): **schema bloat** (tool defs in context) + **response bloat**
+(tool outputs). Highest-leverage = leaner responses.
+- [x] **`compact()` response util** — rounds float noise (175.00000001→175,
+      0.9019607843→0.902; integer ids untouched) + drops null/undefined. Applied to the
+      heaviest read tools: get_instance_properties/children, get_descendants, scene_analysis,
+      memory_breakdown, project_structure, file_tree, mass_get_property, search_objects,
+      get_selection. Big token cut on geometry dumps, zero info loss.
+- [ ] **Response field selection** — optional `fields`/`select` on read tools so the agent
+      pulls only what it needs (e.g. just Name+ClassName) instead of full property sets.
+- [ ] **Pagination / caps** — default `limit`+`cursor` on unbounded list tools
+      (get_descendants, search_*) to avoid 10k-line dumps.
+- [ ] **Aggregation tools** — `get_scene_summary` (counts by class, not full tree);
+      summaries computed server-side before entering context.
+- [ ] **Schema bloat** — ~120 tools' defs load upfront. Audit/trim verbose descriptions;
+      consider a `search_tools`/lazy-schema mode for agents that load everything at once.
+- [ ] **Consistent typed errors** — extend `typedError` codes (B6) to all tool error paths.
+- [ ] **Default `excludeSource`** on property reads of scripts (Source can be huge).
+
 ## 🟢 Next (optional)
 - [ ] README: document the discover → analyze (thumbnails) → insert loop + the new fields.
 - [ ] `get_asset_details` — surface `canCopy` / `isPublicDomain` / owner for pre-checks.
