@@ -1,4 +1,49 @@
-import { classifyError, typedError, responseErrorCode, ErrorCode } from '../errors.js';
+import { classifyError, typedError, responseErrorCode, isRetryable, errorEnvelope, ErrorCode } from '../errors.js';
+
+describe('extended classifyError codes', () => {
+  const cases: Array<[string, ErrorCode]> = [
+    ['Confirmation required: pass confirm: true', 'CONFIRMATION_REQUIRED'],
+    ['Multiple places connected; specify instance_id', 'AMBIGUOUS_TARGET'],
+    ['Terrain volume too large, exceeds the limit', 'RESOURCE_TOO_LARGE'],
+    ['Requires Studio Debugger beta enabled', 'BETA_FEATURE_REQUIRED'],
+    ['ClassName is not creatable', 'UNSUPPORTED_CLASS'],
+    ['assetId is required', 'INVALID_ARGUMENT'],
+  ];
+  it.each(cases)('classifies %j as %s', (msg, code) => {
+    expect(classifyError(msg)).toBe(code);
+  });
+});
+
+describe('isRetryable', () => {
+  it('marks transient transport codes retryable', () => {
+    expect(isRetryable('TIMEOUT')).toBe(true);
+    expect(isRetryable('RATE_LIMITED')).toBe(true);
+    expect(isRetryable('PLUGIN_DISCONNECTED')).toBe(true);
+  });
+  it('marks action-needed codes non-retryable', () => {
+    expect(isRetryable('AUTH')).toBe(false);
+    expect(isRetryable('INVALID_ARGUMENT')).toBe(false);
+    expect(isRetryable('CONFIRMATION_REQUIRED')).toBe(false);
+  });
+});
+
+describe('errorEnvelope', () => {
+  it('builds a uniform envelope with derived retryable + recovery', () => {
+    const env = errorEnvelope('User is not authorized to access Asset', { stage: 'preflight', details: { assetId: 5 } });
+    expect(env.ok).toBe(false);
+    expect(env.error.code).toBe('AUTH');
+    expect(env.error.retryable).toBe(false);
+    expect(env.error.stage).toBe('preflight');
+    expect(env.error.suggestedRecovery).toBeDefined();
+    expect(env.error.details).toEqual({ assetId: 5 });
+  });
+
+  it('honors an explicit code and marks timeout retryable', () => {
+    const env = errorEnvelope('boom', { code: 'TIMEOUT' });
+    expect(env.error.code).toBe('TIMEOUT');
+    expect(env.error.retryable).toBe(true);
+  });
+});
 
 describe('responseErrorCode', () => {
   it('returns undefined for a successful response (no error field)', () => {

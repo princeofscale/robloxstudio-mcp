@@ -14,7 +14,7 @@ Completed notable changes move to [CHANGELOG.md](./CHANGELOG.md).
 
 ## Reliability
 
-- [ ] Extend `typedError` codes from the marketplace/insert paths to all remaining tool error returns.
+- [~] Extended typed-error codes (added CONFIRMATION_REQUIRED/AMBIGUOUS_TARGET/INVALID_ARGUMENT/UNSUPPORTED_CLASS/INSERT_NOT_PERMITTED/RESOURCE_TOO_LARGE/BETA_FEATURE_REQUIRED + `isRetryable` + `errorEnvelope()`). TODO: propagate the `errorEnvelope()` shape to every remaining tool error return (large mechanical sweep).
 
 ## Documentation / external validation
 
