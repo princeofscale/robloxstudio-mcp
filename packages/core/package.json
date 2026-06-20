@@ -1,6 +1,6 @@
 {
   "name": "@princeofscale/robloxstudio-mcp-core",
-  "version": "2.17.0",
+  "version": "2.19.0",
   "private": true,
   "type": "module",
   "main": "dist/index.js",

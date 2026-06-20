@@ -210,7 +210,7 @@ Install only one variant at a time — don't leave both `MCPPlugin.rbxmx` and `M
 ```bash
 npm install && cd studio-plugin && npm install && cd ..
 npm run build                                            # node packages
-npm run typecheck && npm test                            # 184 unit tests
+npm run typecheck && npm test                            # 360+ unit tests
 cd studio-plugin && npm run build && cd ..               # plugin TS → Luau
 node scripts/build-plugin.mjs                            # → MCPPlugin.rbxmx
 node scripts/build-plugin.mjs --variant inspector        # → MCPInspectorPlugin.rbxmx
