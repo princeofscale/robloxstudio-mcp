@@ -52,6 +52,15 @@ describe('buildWorldSnapshotLuau', () => {
     expect(code).toContain('hasTerrain');
   });
 
+  it('skips childless roots and caps the list (token-lean at game level)', () => {
+    // At path=game the root has ~110 children, most of them empty services —
+    // dumping them all defeats the purpose. Caught live during verification.
+    const code = buildWorldSnapshotLuau();
+    expect(code).toContain('local ROOT_LIMIT = 30');
+    expect(code).toContain('if childCount > 0 then');
+    expect(code).toContain('if #roots >= ROOT_LIMIT then break end');
+  });
+
   it('reads capability-gated Lighting.Technology through pcall (PluginSecurity safe)', () => {
     // Reading Lighting.Technology directly throws under PluginSecurity ("lacking
     // capability RobloxScript") — it must be wrapped, caught live in dogfooding.

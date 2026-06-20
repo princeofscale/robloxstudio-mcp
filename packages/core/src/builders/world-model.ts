@@ -105,14 +105,18 @@ table.sort(arr, function(a, b) return a.count > b.count end)
 local top = {}
 for i = 1, math.min(${safeTopN}, #arr) do top[i] = arr[i] end
 
--- Notable subtree roots: direct children of the root (and of Workspace if root is game).
+-- Notable subtree roots: direct children of the root that actually contain
+-- something. At game level this would otherwise dump ~110 empty services and
+-- defeat the token-lean purpose, so skip childless roots and cap the list.
 local roots = {}
-local function addRoots(parent)
-\tfor _, c in ipairs(parent:GetChildren()) do
-\t\ttable.insert(roots, { name = c.Name, className = c.ClassName, path = c:GetFullName(), childCount = #c:GetChildren() })
+local ROOT_LIMIT = 30
+for _, c in ipairs(root:GetChildren()) do
+\tlocal childCount = #c:GetChildren()
+\tif childCount > 0 then
+\t\ttable.insert(roots, { name = c.Name, className = c.ClassName, path = c:GetFullName(), childCount = childCount })
 \tend
+\tif #roots >= ROOT_LIMIT then break end
 end
-addRoots(root)
 
 -- Environment summary (global Lighting + presence of key atmosphere objects).
 -- Read individual properties through pcall: some (e.g. Lighting.Technology) need
