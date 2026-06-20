@@ -188,6 +188,7 @@ describe('Tool schema compatibility', () => {
       get_job_result: 'getJobResult',
       cancel_job: 'cancelJob',
       capture_script_profiler: 'captureScriptProfiler',
+      playtest_sample_state: 'playtestSampleState',
       breakpoints: 'breakpoints',
       export_build: 'exportBuild',
       import_build: 'importBuild',

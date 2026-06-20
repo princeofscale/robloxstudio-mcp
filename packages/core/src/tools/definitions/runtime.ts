@@ -662,4 +662,24 @@ export const RUNTIME_TOOL_DEFINITIONS: ToolDefinition[] = [
       required: ['jobId']
     }
   },
+  {
+    name: 'playtest_sample_state',
+    category: 'read',
+    description: 'Sample LIVE runtime state during a playtest: players (position/health/team/tool/humanoid state), named world state held in ValueBase objects (round counters, flags, ids), currently-playing audio, and runtime/role flags. Use this to debug gameplay while a test runs — pair with start_playtest/get_runtime_logs. Defaults to target="server"; in edit mode the player/world domains come back empty. Domain-masked via `domains`.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        domains: {
+          type: 'array',
+          items: { type: 'string', enum: ['players', 'world', 'audio', 'runtime'] },
+          description: 'Which state domains to sample (default: all).'
+        },
+        target: {
+          type: 'string',
+          description: 'Instance target: "server" (default, the live playtest server), "client-1", or "edit".'
+        },
+        instance_id: { type: 'string', description: 'Connected Studio place id. Required only when multiple places are open.' }
+      }
+    }
+  },
 ];

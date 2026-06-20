@@ -78,6 +78,7 @@ const DOMAIN_OVERRIDES: Record<string, ToolDomain> = {
   get_job_status: 'runtime',
   get_job_result: 'runtime',
   cancel_job: 'runtime',
+  playtest_sample_state: 'runtime',
   // scene read
   compare_instances: 'scene',
   get_memory_breakdown: 'scene',

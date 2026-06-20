@@ -12,6 +12,7 @@ import { typedError, responseErrorCode } from '../errors.js';
 import { compactText } from '../compact.js';
 import { shapeListResponse } from '../response-shape.js';
 import { buildSceneSummaryLuau } from '../builders/scene-summary.js';
+import { buildPlaytestSampleLuau, type TelemetryDomain } from '../builders/playtest-telemetry.js';
 import { type SnapshotLevel } from '../builders/world-model.js';
 import { type ToolDomain } from './tool-catalog.js';
 import { DiscoveryTools } from './discovery-tools.js';
@@ -3506,6 +3507,14 @@ export class RobloxStudioTools {
     // a few tokens to understand a scene's shape vs thousands for get_descendants.
     const code = buildSceneSummaryLuau(instancePath ?? 'game.Workspace', topN ?? 20);
     return this._runGeneratedLuau(code, instance_id);
+  }
+
+  // Live playtest telemetry: sample runtime state (players/world/audio/runtime) on
+  // a running peer. Defaults to the live server DataModel.
+  async playtestSampleState(domains?: TelemetryDomain[], target?: string, instance_id?: string) {
+    const code = buildPlaytestSampleLuau(domains ?? []);
+    const response = await this._callSingle('/api/execute-luau', { code }, target || 'server', instance_id);
+    return { content: [{ type: 'text', text: JSON.stringify(response) }] as ToolContent[] };
   }
 
   // Discovery + world-model tools live in their own domain classes; the facade
