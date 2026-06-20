@@ -1,33 +1,64 @@
-// Pure diff + bounded store for get_changes_since. A fingerprint maps full path ->
-// "ClassName|childCount". Diffing two fingerprints yields the added/removed/changed
-// paths so an agent can refresh only what moved instead of re-pulling the world.
+// Pure diff + bounded store for get_changes_since. Each node carries a path plus
+// three signature channels (structure / semantics / meta). Diffing two fingerprints
+// yields added/removed/changed nodes — and for changed nodes, WHICH channels moved —
+// so an agent refreshes only what actually changed instead of re-pulling the world.
 
-export type Fingerprint = Record<string, string>;
+export interface NodeFingerprint {
+	/** Full path (derived/reporting only — the key is a stable node id). */
+	p: string;
+	/** structure: class | parentId | name | childCount */
+	st: string;
+	/** semantics: domain-specific property signature */
+	se: string;
+	/** meta: sorted tags + attributes */
+	me: string;
+}
+
+export type Fingerprint = Record<string, NodeFingerprint>;
+
+export type ChangeChannel = 'structure' | 'semantics' | 'meta';
+
+export interface ChangedNode {
+	id: string;
+	path: string;
+	channels: ChangeChannel[];
+}
 
 export interface FingerprintDiff {
-	added: string[];
-	removed: string[];
-	changed: string[];
+	added: Array<{ id: string; path: string }>;
+	removed: Array<{ id: string; path: string }>;
+	changed: ChangedNode[];
 	addedCount: number;
 	removedCount: number;
 	changedCount: number;
 }
 
-/** Diff a previous fingerprint against the current one. */
+/** Diff a previous fingerprint against the current one, per channel. */
 export function diffFingerprints(prev: Fingerprint, curr: Fingerprint): FingerprintDiff {
-	const added: string[] = [];
-	const removed: string[] = [];
-	const changed: string[] = [];
-	for (const path of Object.keys(curr)) {
-		if (!(path in prev)) added.push(path);
-		else if (prev[path] !== curr[path]) changed.push(path);
+	const added: Array<{ id: string; path: string }> = [];
+	const removed: Array<{ id: string; path: string }> = [];
+	const changed: ChangedNode[] = [];
+
+	for (const id of Object.keys(curr)) {
+		const c = curr[id];
+		const p = prev[id];
+		if (!p) {
+			added.push({ id, path: c.p });
+			continue;
+		}
+		const channels: ChangeChannel[] = [];
+		if (p.st !== c.st) channels.push('structure');
+		if (p.se !== c.se) channels.push('semantics');
+		if (p.me !== c.me) channels.push('meta');
+		if (channels.length > 0) changed.push({ id, path: c.p, channels });
 	}
-	for (const path of Object.keys(prev)) {
-		if (!(path in curr)) removed.push(path);
+	for (const id of Object.keys(prev)) {
+		if (!(id in curr)) removed.push({ id, path: prev[id].p });
 	}
-	added.sort();
-	removed.sort();
-	changed.sort();
+
+	added.sort((a, b) => a.path.localeCompare(b.path));
+	removed.sort((a, b) => a.path.localeCompare(b.path));
+	changed.sort((a, b) => a.path.localeCompare(b.path));
 	return {
 		added,
 		removed,
@@ -79,7 +110,6 @@ export class SnapshotStore {
 
 	private prune(): void {
 		if (this.snapshots.size <= this.maxSnapshots) return;
-		// Drop the oldest by insertion order (Map preserves it).
 		const overflow = this.snapshots.size - this.maxSnapshots;
 		let removed = 0;
 		for (const key of this.snapshots.keys()) {
