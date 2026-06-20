@@ -193,6 +193,34 @@ export function searchCatalog(catalog: CatalogEntry[], params: CatalogSearchPara
     .map((x) => x.e);
 }
 
+export interface ToolsetRecommendation {
+  domain: ToolDomain;
+  recommendedTools: string[];
+  load: { tool: 'load_toolset'; args: { toolsets: ToolDomain[] } };
+}
+
+/**
+ * Build a machine-readable "what to load next" recommendation from search matches,
+ * so an agent (or a lazy-loading client) knows to call load_toolset rather than
+ * having to guess. Groups matched tools by domain, most-matched first.
+ */
+export function recommendToolsets(matches: CatalogEntry[]): ToolsetRecommendation[] {
+  const byDomain = new Map<ToolDomain, string[]>();
+  for (const m of matches) {
+    if (m.domain === 'core') continue; // core is always loaded
+    const list = byDomain.get(m.domain) ?? [];
+    list.push(m.name);
+    byDomain.set(m.domain, list);
+  }
+  return Array.from(byDomain.entries())
+    .sort((a, b) => b[1].length - a[1].length)
+    .map(([domain, recommendedTools]) => ({
+      domain,
+      recommendedTools,
+      load: { tool: 'load_toolset' as const, args: { toolsets: [domain] } },
+    }));
+}
+
 /**
  * Resolve a list of requested toolset selectors (domain names, or `domain.suffix`
  * shorthands like `scene.inspect`) into the set of tool names to expose. Unknown

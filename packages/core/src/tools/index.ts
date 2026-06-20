@@ -16,7 +16,7 @@ import { buildWorldSnapshotLuau, buildNodeBatchLuau, type SnapshotLevel } from '
 import { buildAssetPreflightLuau } from '../builders/asset-preflight.js';
 import { buildWorldFingerprintLuau } from '../builders/world-fingerprint.js';
 import { diffFingerprints, SnapshotStore, type Fingerprint } from '../world-changes.js';
-import { buildCatalog, searchCatalog, expandToolsets, type CatalogEntry, type ToolDomain } from './tool-catalog.js';
+import { buildCatalog, searchCatalog, expandToolsets, recommendToolsets, type CatalogEntry, type ToolDomain } from './tool-catalog.js';
 import { TOOL_DEFINITIONS } from './definitions.js';
 import {
   buildCreateSoundLuau,
@@ -3556,10 +3556,17 @@ export class RobloxStudioTools {
       readOnly: body?.readOnly,
       limit: body?.limit,
     });
+    const recommendedToolsets = recommendToolsets(matches);
     return {
       content: [{
         type: 'text',
-        text: JSON.stringify({ query: body?.query ?? '', count: matches.length, matches }),
+        text: JSON.stringify({
+          query: body?.query ?? '',
+          count: matches.length,
+          matches,
+          recommendedToolsets,
+          client_hint: 'If a tool you need is not in your current tool list, call load_toolset with the recommended domain(s) first.',
+        }),
       }],
     };
   }

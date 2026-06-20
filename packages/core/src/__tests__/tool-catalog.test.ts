@@ -3,6 +3,7 @@ import {
   buildCatalog,
   searchCatalog,
   expandToolsets,
+  recommendToolsets,
   CORE_TOOLS,
   TOOL_DOMAINS,
   type ToolDomain,
@@ -117,6 +118,28 @@ describe('expandToolsets', () => {
   it('ignores unknown selectors', () => {
     const set = expandToolsets(catalog, ['nonsense']);
     expect(set.size).toBe(CORE_TOOLS.size);
+  });
+});
+
+describe('recommendToolsets', () => {
+  const catalog = buildCatalog(TOOL_DEFINITIONS);
+
+  it('groups matches into a machine-readable load recommendation, skipping core', () => {
+    const matches = searchCatalog(catalog, { query: 'create frame', domains: ['ui'] });
+    const recs = recommendToolsets(matches);
+    expect(recs.length).toBeGreaterThan(0);
+    expect(recs[0].domain).toBe('ui');
+    expect(recs[0].load).toEqual({ tool: 'load_toolset', args: { toolsets: ['ui'] } });
+    expect(recs[0].recommendedTools).toContain('ui_create_frame');
+    expect(recs.every((r) => r.domain !== 'core')).toBe(true);
+  });
+
+  it('orders domains by how many tools matched', () => {
+    const matches = searchCatalog(catalog, { query: 'get', limit: 20 });
+    const recs = recommendToolsets(matches);
+    for (let i = 1; i < recs.length; i++) {
+      expect(recs[i - 1].recommendedTools.length).toBeGreaterThanOrEqual(recs[i].recommendedTools.length);
+    }
   });
 });
 
