@@ -14,6 +14,7 @@ import { shapeListResponse } from '../response-shape.js';
 import { buildSceneSummaryLuau } from '../builders/scene-summary.js';
 import { buildWorldSnapshotLuau, buildNodeBatchLuau, type SnapshotLevel } from '../builders/world-model.js';
 import { buildAssetPreflightLuau } from '../builders/asset-preflight.js';
+import { buildSceneSearchLuau } from '../builders/scene-search.js';
 import { buildWorldFingerprintLuau } from '../builders/world-fingerprint.js';
 import { diffFingerprints, SnapshotStore, type Fingerprint } from '../world-changes.js';
 import { buildCatalog, searchCatalog, expandToolsets, recommendToolsets, type CatalogEntry, type ToolDomain } from './tool-catalog.js';
@@ -3574,6 +3575,14 @@ export class RobloxStudioTools {
   // World model: token-lean snapshot + batch read (run via execute-luau).
   async getWorldSnapshot(path?: string, level?: SnapshotLevel, topNPerClass?: number, instance_id?: string) {
     const code = buildWorldSnapshotLuau(path ?? 'game', level ?? 'overview', topNPerClass ?? 12);
+    return this._runGeneratedLuau(code, instance_id);
+  }
+
+  async sceneSearch(query: string, path?: string, limit?: number, instance_id?: string) {
+    if (!query || !query.trim()) {
+      throw new Error('query is required for scene_search');
+    }
+    const code = buildSceneSearchLuau(query, path ?? 'game', limit ?? 10);
     return this._runGeneratedLuau(code, instance_id);
   }
 

@@ -3,6 +3,15 @@
 Roadmap for unresolved work in the MCP itself (this repo / npm packages), not games built with it.
 Completed notable changes move to [CHANGELOG.md](./CHANGELOG.md).
 
+## Larger follow-ups (from research review #2, deferred — high effort / host-gated)
+
+- [ ] Split `packages/core/src/tools/index.ts` (~3500 lines) into registry/handlers/transport/error seams with a declarative `registerTool` + `withStandardToolPipeline`. High ROI for maintainability but a large refactor with regression risk — do it as a focused pass (with the schema/route-parity tests as invariants), not bundled with feature work or right before a release.
+- [ ] Headless Luau CI: run the Luau-adjacent logic (codecs, diff, progress/cancel helpers, chunk planners) under a luau/lune CLI in CI. Lower ROI for us than it sounds because our Luau is generated strings already verified live, but raises coverage.
+- [ ] MCP `resources` + subscriptions as a first-class world interface (`roblox://world/snapshot?mask=...`, `roblox://node/<id>`, `roblox://world/changes?since=...`) plus TTL/cache hints on list/read. Real protocol addition; layer it on top of the existing snapshot-store rather than replacing it.
+- [ ] `outputSchema` + `structuredContent` on every read/orchestration tool (the error-envelope half is already done by topology). Needs per-tool structured returns + client-validation testing.
+- [ ] MCP App (interactive UI) for asset-insertion review and bulk-change approval. Host-gated (needs an MCP-Apps-capable host to render); revisit when the host supports it.
+- [ ] Semantic scene search upgrade: optional embedding index over name+class+tags+attrs+script-summaries (the current `scene_search` is the lexical multi-signal version; embeddings would need an external/local model).
+
 ## Architecture / maintainability
 
 - [ ] Continue splitting `packages/core/src/tools/index.ts` into a smaller `RobloxStudioTools` facade plus domain tool classes/modules for scene, scripts, assets, runtime/playtest, diagnostics, and marketplace/media tools.

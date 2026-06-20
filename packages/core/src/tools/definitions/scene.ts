@@ -531,4 +531,31 @@ export const SCENE_TOOL_DEFINITIONS: ToolDefinition[] = [
       }
     }
   },
+  {
+    name: 'scene_search',
+    category: 'read',
+    description: 'Ranked, multi-signal scene search for "where is X" questions ("find the door system", "where is the shop UI", "what controls day/night"). Scores each instance across name, tags, attribute keys, parent name, and class, and returns the top matches with a score and which terms matched. More intent-aware than search_objects (which is single-field); use it when you do not know exact names/paths.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        query: {
+          type: 'string',
+          description: 'What you are looking for, e.g. "shop ui", "door system", "day night".'
+        },
+        path: {
+          type: 'string',
+          description: 'Root path to search under (default: game).'
+        },
+        limit: {
+          type: 'number',
+          description: 'Max results 1-50 (default 10).'
+        },
+        instance_id: {
+          type: 'string',
+          description: 'Connected Studio place id. Required only when multiple places are open.'
+        }
+      },
+      required: ['query']
+    }
+  },
 ];

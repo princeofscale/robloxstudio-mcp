@@ -147,10 +147,10 @@ Responses are already compacted (trimmed floats, dropped null fields) and errors
 
 Where we lead: a real **safety layer**, **game-template generators**, **free marketplace search**, **free sync/history** (Pro-gated in WEPPY), `--doctor`, and a **read-only edition** — all MIT and self-hosted.
 
-## Tool catalog (131 tools)
+## Tool catalog (132 tools)
 
 - **Discovery:** `tool_catalog_search` — find the right tool for a task by domain without loading every schema (token-lean catalog of all tools) — and `load_toolset` to pull in a domain on demand. With `ROBLOX_MCP_LAZY_TOOLS=1` the server advertises only a small always-on core upfront and expands as `load_toolset` is called (opt-in; off by default).
-- **World model:** `get_world_snapshot` (token-lean place overview — counts, top classes, subtree roots, environment), `get_node_batch` (read chosen fields of many instances in one call), and `get_changes_since` (incremental added/removed/changed diff vs a prior snapshot) — the cheap inspect-then-drill-down-then-refresh pipeline.
+- **World model:** `get_world_snapshot` (token-lean place overview — counts, top classes, subtree roots, environment), `get_node_batch` (read chosen fields of many instances in one call), `get_changes_since` (incremental added/removed/changed diff vs a prior snapshot), and `scene_search` (ranked "where is X" search over name/tags/attributes/parent/class) — the cheap inspect-then-drill-down-then-refresh pipeline.
 - **Asset preflight:** `asset_preflight_insert` — authoritatively check whether an asset inserts (isolated `LoadAssetAsync` load + verdict) before touching the scene.
 - **Browse & inspect:** file tree, services, instances, properties, attributes, tags, descendants, scene/memory analysis.
 - **Edit:** create/delete/duplicate/move instances, set properties (typed), bulk operations, script read/patch/replace, grep.

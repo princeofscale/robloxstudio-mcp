@@ -29,6 +29,7 @@ export const TOOL_HANDLERS: Record<string, ToolHandler> = {
   get_world_snapshot: (tools, body) => tools.getWorldSnapshot(body.path, body.level, body.topNPerClass, body.instance_id),
   get_node_batch: (tools, body) => tools.getNodeBatch(body.paths, body.fields, body.includeChildrenCount, body.instance_id),
   get_changes_since: (tools, body) => tools.getChangesSince(body.snapshotId, body.path, body.instance_id),
+  scene_search: (tools, body) => tools.sceneSearch(body.query, body.path, body.limit, body.instance_id),
   asset_preflight_insert: (tools, body) => tools.assetPreflightInsert(body.assetId, body.instance_id),
   execute_luau_async: (tools, body) => tools.executeLuauAsync(body.code, body.target, body.instance_id, { dryRun: body.dryRun, confirm: body.confirm }),
   get_job_status: (tools, body) => tools.getJobStatus(body.jobId, body.target, body.instance_id),

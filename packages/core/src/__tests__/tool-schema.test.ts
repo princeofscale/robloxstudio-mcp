@@ -204,6 +204,7 @@ describe('Tool schema compatibility', () => {
       get_world_snapshot: 'getWorldSnapshot',
       get_node_batch: 'getNodeBatch',
       get_changes_since: 'getChangesSince',
+      scene_search: 'sceneSearch',
       compare_instances: 'compareInstances',
       bulk_set_attributes: 'bulkSetAttributes',
       capture_screenshot: 'captureScreenshot',
