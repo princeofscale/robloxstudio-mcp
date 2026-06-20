@@ -103,6 +103,23 @@ While the server is running, open **http://localhost:58741/dashboard** for a liv
 > *"Set the lighting to a horror preset and add a day-night cycle."*
 > *"Start a multiplayer test with 2 clients and tell me why the round never starts."*
 
+## Working efficiently with an agent
+
+These tools are designed so an agent spends tokens on signal, not noise. Two workflows are worth knowing:
+
+**Inspect cheaply, then drill down.** Don't dump the whole DataModel. Start with `get_scene_summary` (counts descendants by `ClassName` and returns totals + top classes — a few hundred tokens for a scene of thousands of instances), then target `get_instance_children` / `get_descendants` only where you need detail. Read tools accept token-saving params:
+
+- `fields` — request only the properties you need (e.g. `["Name", "ClassName", "Position"]`) instead of the full property set.
+- `limit` / `offset` — page through large child lists rather than fetching them all at once.
+
+Responses are already compacted (trimmed floats, dropped null fields) and errors carry stable `code`s (`TIMEOUT`, `AUTH`, `NOT_FOUND`, `PLUGIN_DISCONNECTED`, `RATE_LIMITED`) so an agent can branch on the failure kind without parsing prose.
+
+**Marketplace: discover → analyze → insert.** Instead of building a model from primitives, search the public toolbox (no key needed) and insert a real asset:
+
+1. `marketplace_search` — returns real asset ids, names, creators, `favoriteCount`, a viewable `thumbnailUrl`, plus `isFree` and `hasScripts` so the agent can judge a candidate before inserting. Use `limit` to keep the list short.
+2. Analyze the candidates — prefer `isFree: true` (free toolbox models reliably load in Edit; paid/copy-locked ones fail `LoadAsset` with an `AUTH` error), and inspect `thumbnailUrl` to confirm the look.
+3. `insert_asset` (or `marketplace_search_and_insert` to do steps 1–3 in one call — it walks ranked candidates and skips copy-locked ones).
+
 ## How it compares to WEPPY
 
 | Capability | This MCP | WEPPY |

@@ -107,6 +107,42 @@ describe('MarketplaceClient.parseDetails', () => {
     expect(map.get(7)).toMatchObject({ price: 25, isFree: false });
   });
 
+  it('parses the real live toolbox shape (typeId, fiatProduct.isFree, hasScripts)', () => {
+    // Captured from a live items/details call — the real field names differ from
+    // the older synthetic fixtures (typeId, not assetTypeId; fiatProduct, not product).
+    const map = client.parseDetails({
+      data: [
+        {
+          asset: {
+            id: 4893246329,
+            name: 'Low Poly Tree',
+            typeId: 10,
+            description: 'A tree',
+            hasScripts: false,
+          },
+          creator: { name: 'Abishpc' },
+          voting: { upVotes: 828, downVotes: 72 },
+          fiatProduct: { purchasable: true, isFree: true },
+        },
+      ],
+    });
+    expect(map.get(4893246329)).toMatchObject({
+      name: 'Low Poly Tree',
+      creatorName: 'Abishpc',
+      assetTypeId: 10,
+      favoriteCount: 828,
+      isFree: true,
+      hasScripts: false,
+    });
+  });
+
+  it('flags a paid asset as not free via fiatProduct', () => {
+    const map = client.parseDetails({
+      data: [{ asset: { id: 8, typeId: 10 }, fiatProduct: { isFree: false } }],
+    });
+    expect(map.get(8)).toMatchObject({ isFree: false });
+  });
+
   it('returns an empty map for junk', () => {
     expect(client.parseDetails(null).size).toBe(0);
     expect(client.parseDetails({}).size).toBe(0);

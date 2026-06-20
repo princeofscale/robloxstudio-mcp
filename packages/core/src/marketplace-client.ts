@@ -31,7 +31,11 @@ export interface MarketplaceAsset {
   favoriteCount?: number;
   /** Price in Robux. 0 means free. */
   price?: number;
+  /** Whether the asset is free. Free toolbox models are the ones that reliably
+   * insert in Edit; paid/copy-locked ones tend to fail LoadAsset with AUTH. */
   isFree?: boolean;
+  /** Whether the model bundles scripts — a safety signal before inserting. */
+  hasScripts?: boolean;
   description?: string;
 }
 
@@ -132,19 +136,30 @@ export class MarketplaceClient {
       const creatorName = (e.creator && typeof e.creator === 'object' ? e.creator.name : undefined)
         ?? e.creatorName ?? asset.creatorName;
       const upVotes = e.voting && typeof e.voting === 'object' ? Number(e.voting.upVotes) : undefined;
+      // The live toolbox response uses `fiatProduct` (with an explicit `isFree`
+      // boolean); older/synthetic shapes use `product.price`. Support both.
+      const fiatProduct = (e.fiatProduct && typeof e.fiatProduct === 'object') ? e.fiatProduct : undefined;
       const product = (e.product && typeof e.product === 'object') ? e.product : undefined;
       const rawPrice = product?.price ?? asset.price ?? e.price;
       const price = Number.isFinite(Number(rawPrice)) ? Number(rawPrice) : undefined;
+      // The live toolbox response exposes the asset type as `typeId`; the older
+      // synthetic shape used `assetTypeId`. Accept either.
+      const rawTypeId = asset.typeId ?? asset.assetTypeId;
 
       const fields: Partial<MarketplaceAsset> = {};
       if (asset.name !== undefined) fields.name = String(asset.name);
       if (creatorName !== undefined) fields.creatorName = String(creatorName);
       if (asset.description !== undefined) fields.description = String(asset.description);
-      if (Number.isFinite(Number(asset.assetTypeId))) fields.assetTypeId = Number(asset.assetTypeId);
+      if (Number.isFinite(Number(rawTypeId))) fields.assetTypeId = Number(rawTypeId);
       if (upVotes !== undefined && Number.isFinite(upVotes)) fields.favoriteCount = upVotes;
+      if (typeof asset.hasScripts === 'boolean') fields.hasScripts = asset.hasScripts;
+      if (typeof fiatProduct?.isFree === 'boolean') {
+        fields.isFree = fiatProduct.isFree;
+      }
       if (price !== undefined) {
         fields.price = price;
-        fields.isFree = price <= 0;
+        // Only infer isFree from price when fiatProduct didn't already say.
+        if (fields.isFree === undefined) fields.isFree = price <= 0;
       }
       map.set(id, fields);
     }

@@ -14,6 +14,6 @@ Completed notable changes move to [CHANGELOG.md](./CHANGELOG.md).
 
 ## Documentation / external validation
 
-- [ ] README: document the discover -> analyze thumbnails -> insert loop and the token-saving `fields`, `limit`, `offset`, and `get_scene_summary` workflow.
-- [ ] `get_asset_details`: surface `canCopy`, `isPublicDomain`, and owner data for pre-insert checks.
-- [ ] Live-verify the toolbox `items/details` response shape; `parseDetails` is defensive, but field names may need tuning against real data.
+- [x] README: document the discover -> analyze thumbnails -> insert loop and the token-saving `fields`, `limit`, `offset`, and `get_scene_summary` workflow.
+- [x] Live-verify the toolbox `items/details` response shape; tuned `parseDetails` to the real field names (`asset.typeId`, `fiatProduct.isFree`) and surfaced `isFree`/`hasScripts` on results.
+- [ ] `get_asset_details` (keyed/cookie path): surface `canCopy`, `isPublicDomain`, and owner data for pre-insert checks. (The key-free pre-insert signal now comes from marketplace `isFree`.)
