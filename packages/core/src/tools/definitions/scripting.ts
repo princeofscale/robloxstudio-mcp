@@ -23,7 +23,7 @@ export const SCRIPTING_TOOL_DEFINITIONS: ToolDefinition[] = [
         },
         instance_id: {
           type: 'string',
-          description: 'Which connected Studio place to target. Required when multiple places are connected; omit when one. Use get_connected_instances to list available IDs.'
+          description: 'Connected Studio place id. Required only when multiple places are open.'
         }
       },
       required: ['instancePath']
@@ -54,7 +54,7 @@ export const SCRIPTING_TOOL_DEFINITIONS: ToolDefinition[] = [
         },
         instance_id: {
           type: 'string',
-          description: 'Which connected Studio place to target. Required when multiple places are connected; omit when one. Use get_connected_instances to list available IDs.'
+          description: 'Connected Studio place id. Required only when multiple places are open.'
         }
       },
       required: ['instancePath', 'source']
@@ -85,7 +85,7 @@ export const SCRIPTING_TOOL_DEFINITIONS: ToolDefinition[] = [
         },
         instance_id: {
           type: 'string',
-          description: 'Which connected Studio place to target. Required when multiple places are connected; omit when one. Use get_connected_instances to list available IDs.'
+          description: 'Connected Studio place id. Required only when multiple places are open.'
         }
       },
       required: ['instancePath', 'old_string', 'new_string']
@@ -112,7 +112,7 @@ export const SCRIPTING_TOOL_DEFINITIONS: ToolDefinition[] = [
         },
         instance_id: {
           type: 'string',
-          description: 'Which connected Studio place to target. Required when multiple places are connected; omit when one. Use get_connected_instances to list available IDs.'
+          description: 'Connected Studio place id. Required only when multiple places are open.'
         }
       },
       required: ['instancePath', 'newContent']
@@ -139,7 +139,7 @@ export const SCRIPTING_TOOL_DEFINITIONS: ToolDefinition[] = [
         },
         instance_id: {
           type: 'string',
-          description: 'Which connected Studio place to target. Required when multiple places are connected; omit when one. Use get_connected_instances to list available IDs.'
+          description: 'Connected Studio place id. Required only when multiple places are open.'
         }
       },
       required: ['instancePath', 'startLine', 'endLine']
@@ -171,7 +171,7 @@ export const SCRIPTING_TOOL_DEFINITIONS: ToolDefinition[] = [
         },
         instance_id: {
           type: 'string',
-          description: 'Which connected Studio place to target. Required when multiple places are connected; omit when one. Use get_connected_instances to list available IDs.'
+          description: 'Connected Studio place id. Required only when multiple places are open.'
         }
       },
       required: ['instancePath', 'attributeName', 'attributeValue']
@@ -190,7 +190,7 @@ export const SCRIPTING_TOOL_DEFINITIONS: ToolDefinition[] = [
         },
         instance_id: {
           type: 'string',
-          description: 'Which connected Studio place to target. Required when multiple places are connected; omit when one. Use get_connected_instances to list available IDs.'
+          description: 'Connected Studio place id. Required only when multiple places are open.'
         }
       },
       required: ['instancePath']
@@ -213,7 +213,7 @@ export const SCRIPTING_TOOL_DEFINITIONS: ToolDefinition[] = [
         },
         instance_id: {
           type: 'string',
-          description: 'Which connected Studio place to target. Required when multiple places are connected; omit when one. Use get_connected_instances to list available IDs.'
+          description: 'Connected Studio place id. Required only when multiple places are open.'
         }
       },
       required: ['instancePath', 'attributeName']
@@ -234,7 +234,7 @@ export const SCRIPTING_TOOL_DEFINITIONS: ToolDefinition[] = [
         },
         instance_id: {
           type: 'string',
-          description: 'Which connected Studio place to target. Required when multiple places are connected; omit when one. Use get_connected_instances to list available IDs.'
+          description: 'Connected Studio place id. Required only when multiple places are open.'
         }
       },
       required: ['instancePath']
@@ -257,7 +257,7 @@ export const SCRIPTING_TOOL_DEFINITIONS: ToolDefinition[] = [
         },
         instance_id: {
           type: 'string',
-          description: 'Which connected Studio place to target. Required when multiple places are connected; omit when one. Use get_connected_instances to list available IDs.'
+          description: 'Connected Studio place id. Required only when multiple places are open.'
         }
       },
       required: ['instancePath', 'tagName']
@@ -280,7 +280,7 @@ export const SCRIPTING_TOOL_DEFINITIONS: ToolDefinition[] = [
         },
         instance_id: {
           type: 'string',
-          description: 'Which connected Studio place to target. Required when multiple places are connected; omit when one. Use get_connected_instances to list available IDs.'
+          description: 'Connected Studio place id. Required only when multiple places are open.'
         }
       },
       required: ['instancePath', 'tagName']
@@ -299,7 +299,7 @@ export const SCRIPTING_TOOL_DEFINITIONS: ToolDefinition[] = [
         },
         instance_id: {
           type: 'string',
-          description: 'Which connected Studio place to target. Required when multiple places are connected; omit when one. Use get_connected_instances to list available IDs.'
+          description: 'Connected Studio place id. Required only when multiple places are open.'
         }
       },
       required: ['tagName']
@@ -316,7 +316,7 @@ export const SCRIPTING_TOOL_DEFINITIONS: ToolDefinition[] = [
       properties: {
         instance_id: {
           type: 'string',
-          description: 'Which connected Studio place to target. Required when multiple places are connected; omit when one. Use get_connected_instances to list available IDs.'
+          description: 'Connected Studio place id. Required only when multiple places are open.'
         }
       }
     }
@@ -348,7 +348,7 @@ export const SCRIPTING_TOOL_DEFINITIONS: ToolDefinition[] = [
         },
         instance_id: {
           type: 'string',
-          description: 'Which connected Studio place to target. Required when multiple places are connected; omit when one. Use get_connected_instances to list available IDs.'
+          description: 'Connected Studio place id. Required only when multiple places are open.'
         }
       },
       required: ['code']
@@ -367,7 +367,7 @@ export const SCRIPTING_TOOL_DEFINITIONS: ToolDefinition[] = [
         },
         instance_id: {
           type: 'string',
-          description: 'Which connected Studio place to target. Required when multiple places are connected; omit when one. Use get_connected_instances to list available IDs.'
+          description: 'Connected Studio place id. Required only when multiple places are open.'
         }
       },
       required: ['code']
@@ -390,7 +390,7 @@ export const SCRIPTING_TOOL_DEFINITIONS: ToolDefinition[] = [
         },
         instance_id: {
           type: 'string',
-          description: 'Which connected Studio place to target. Required when multiple places are connected; omit when one. Use get_connected_instances to list available IDs.'
+          description: 'Connected Studio place id. Required only when multiple places are open.'
         }
       },
       required: ['code']
@@ -444,7 +444,7 @@ export const SCRIPTING_TOOL_DEFINITIONS: ToolDefinition[] = [
         },
         instance_id: {
           type: 'string',
-          description: 'Which connected Studio place to target. Required when multiple places are connected; omit when one. Use get_connected_instances to list available IDs.'
+          description: 'Connected Studio place id. Required only when multiple places are open.'
         }
       },
       required: ['pattern']

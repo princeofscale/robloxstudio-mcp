@@ -33,7 +33,7 @@ export const SCENE_TOOL_DEFINITIONS: ToolDefinition[] = [
         },
         instance_id: {
           type: 'string',
-          description: 'Which connected Studio place to target. Required when multiple places are connected; omit when one. Use get_connected_instances to list available IDs.'
+          description: 'Connected Studio place id. Required only when multiple places are open.'
         }
       },
       required: ['action', 'x', 'y']
@@ -69,7 +69,7 @@ export const SCENE_TOOL_DEFINITIONS: ToolDefinition[] = [
         },
         instance_id: {
           type: 'string',
-          description: 'Which connected Studio place to target. Required when multiple places are connected; omit when one. Use get_connected_instances to list available IDs.'
+          description: 'Connected Studio place id. Required only when multiple places are open.'
         }
       }
     }
@@ -106,7 +106,7 @@ export const SCENE_TOOL_DEFINITIONS: ToolDefinition[] = [
         },
         instance_id: {
           type: 'string',
-          description: 'Which connected Studio place to target. Required when multiple places are connected; omit when one. Use get_connected_instances to list available IDs.'
+          description: 'Connected Studio place id. Required only when multiple places are open.'
         }
       }
     }
@@ -130,7 +130,7 @@ export const SCENE_TOOL_DEFINITIONS: ToolDefinition[] = [
         },
         instance_id: {
           type: 'string',
-          description: 'Which connected Studio place to target. Required when multiple places are connected; omit when one. Use get_connected_instances to list available IDs.'
+          description: 'Connected Studio place id. Required only when multiple places are open.'
         }
       },
       required: ['instancePath', 'targetParentPath']
@@ -162,7 +162,7 @@ export const SCENE_TOOL_DEFINITIONS: ToolDefinition[] = [
         fields: { type: 'array', items: { type: 'string' }, description: 'Keep only these fields per descendant (e.g. ["name","className","path"]) to cut tokens.' },
         instance_id: {
           type: 'string',
-          description: 'Which connected Studio place to target. Required when multiple places are connected; omit when one. Use get_connected_instances to list available IDs.'
+          description: 'Connected Studio place id. Required only when multiple places are open.'
         }
       },
       required: ['instancePath']
@@ -179,7 +179,7 @@ export const SCENE_TOOL_DEFINITIONS: ToolDefinition[] = [
         topN: { type: 'number', description: 'How many of the most common classes to list (default 20).' },
         instance_id: {
           type: 'string',
-          description: 'Which connected Studio place to target. Required when multiple places are connected; omit when one. Use get_connected_instances to list available IDs.'
+          description: 'Connected Studio place id. Required only when multiple places are open.'
         }
       }
     }
@@ -201,7 +201,7 @@ export const SCENE_TOOL_DEFINITIONS: ToolDefinition[] = [
         },
         instance_id: {
           type: 'string',
-          description: 'Which connected Studio place to target. Required when multiple places are connected; omit when one. Use get_connected_instances to list available IDs.'
+          description: 'Connected Studio place id. Required only when multiple places are open.'
         }
       },
       required: ['instancePathA', 'instancePathB']
@@ -225,7 +225,7 @@ export const SCENE_TOOL_DEFINITIONS: ToolDefinition[] = [
         },
         instance_id: {
           type: 'string',
-          description: 'Which connected Studio place to target. Required when multiple places are connected; omit when one. Use get_connected_instances to list available IDs.'
+          description: 'Connected Studio place id. Required only when multiple places are open.'
         }
       },
       required: ['instancePath', 'attributes']
@@ -251,7 +251,7 @@ export const SCENE_TOOL_DEFINITIONS: ToolDefinition[] = [
         },
         instance_id: {
           type: 'string',
-          description: 'Which connected Studio place to target. Required when multiple places are connected; omit when one. Use get_connected_instances to list available IDs.'
+          description: 'Connected Studio place id. Required only when multiple places are open.'
         }
       }
     }
@@ -284,7 +284,7 @@ export const SCENE_TOOL_DEFINITIONS: ToolDefinition[] = [
         },
         instance_id: {
           type: 'string',
-          description: 'Which connected Studio place to target. Required when multiple places are connected; omit when one. Use get_connected_instances to list available IDs.'
+          description: 'Connected Studio place id. Required only when multiple places are open.'
         }
       }
     }
@@ -314,7 +314,7 @@ export const SCENE_TOOL_DEFINITIONS: ToolDefinition[] = [
         },
         instance_id: {
           type: 'string',
-          description: 'Which connected Studio place to target. Required when multiple places are connected; omit when one. Use get_connected_instances to list available IDs.'
+          description: 'Connected Studio place id. Required only when multiple places are open.'
         }
       },
       required: ['instance_paths', 'output_path']
@@ -352,7 +352,7 @@ export const SCENE_TOOL_DEFINITIONS: ToolDefinition[] = [
         },
         instance_id: {
           type: 'string',
-          description: 'Which connected Studio place to target. Required when multiple places are connected; omit when one. Use get_connected_instances to list available IDs.'
+          description: 'Connected Studio place id. Required only when multiple places are open.'
         }
       },
       required: ['source', 'parent_path']
@@ -402,7 +402,7 @@ export const SCENE_TOOL_DEFINITIONS: ToolDefinition[] = [
         },
         instance_id: {
           type: 'string',
-          description: 'Which connected Studio place to target. Required when multiple places are connected; omit when one. Use get_connected_instances to list available IDs.'
+          description: 'Connected Studio place id. Required only when multiple places are open.'
         }
       },
       required: ['pattern', 'replacement']
@@ -446,7 +446,7 @@ export const SCENE_TOOL_DEFINITIONS: ToolDefinition[] = [
         },
         instance_id: {
           type: 'string',
-          description: 'Which connected Studio place to target. Required when multiple places are connected; omit when one. Use get_connected_instances to list available IDs.'
+          description: 'Connected Studio place id. Required only when multiple places are open.'
         }
       },
       required: ['instancePath']

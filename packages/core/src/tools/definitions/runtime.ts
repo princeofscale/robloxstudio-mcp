@@ -20,7 +20,7 @@ export const RUNTIME_TOOL_DEFINITIONS: ToolDefinition[] = [
         },
         instance_id: {
           type: 'string',
-          description: 'Which connected Studio place to target. Required when multiple places are connected; omit when one. Use get_connected_instances to list available IDs.'
+          description: 'Connected Studio place id. Required only when multiple places are open.'
         }
       },
       required: ['mode']
@@ -35,7 +35,7 @@ export const RUNTIME_TOOL_DEFINITIONS: ToolDefinition[] = [
       properties: {
         instance_id: {
           type: 'string',
-          description: 'Which connected Studio place to target. Required when multiple places are connected; omit when one. Use get_connected_instances to list available IDs.'
+          description: 'Connected Studio place id. Required only when multiple places are open.'
         }
       }
     }
@@ -97,7 +97,7 @@ export const RUNTIME_TOOL_DEFINITIONS: ToolDefinition[] = [
         },
         instance_id: {
           type: 'string',
-          description: 'Which connected Studio place to target. Required when multiple places are connected; omit when one. Use get_connected_instances to list available IDs.'
+          description: 'Connected Studio place id. Required only when multiple places are open.'
         }
       },
       required: ['profile']
@@ -121,7 +121,7 @@ export const RUNTIME_TOOL_DEFINITIONS: ToolDefinition[] = [
         },
         instance_id: {
           type: 'string',
-          description: 'Which connected Studio place to target. Required when multiple places are connected; omit when one. Use get_connected_instances to list available IDs.'
+          description: 'Connected Studio place id. Required only when multiple places are open.'
         }
       }
     }
@@ -147,7 +147,7 @@ export const RUNTIME_TOOL_DEFINITIONS: ToolDefinition[] = [
         },
         instance_id: {
           type: 'string',
-          description: 'Which connected Studio place to target. Required when multiple places are connected; omit when one. Use get_connected_instances to list available IDs.'
+          description: 'Connected Studio place id. Required only when multiple places are open.'
         }
       }
     }
@@ -173,7 +173,7 @@ export const RUNTIME_TOOL_DEFINITIONS: ToolDefinition[] = [
         },
         instance_id: {
           type: 'string',
-          description: 'Which connected Studio place to target. Required when multiple places are connected; omit when one. Use get_connected_instances to list available IDs.'
+          description: 'Connected Studio place id. Required only when multiple places are open.'
         }
       }
     }
@@ -227,7 +227,7 @@ export const RUNTIME_TOOL_DEFINITIONS: ToolDefinition[] = [
         },
         instance_id: {
           type: 'string',
-          description: 'Which connected Studio place to target. Required when multiple places are connected; omit when one. Use get_connected_instances to list available IDs.'
+          description: 'Connected Studio place id. Required only when multiple places are open.'
         }
       }
     }
@@ -308,7 +308,7 @@ export const RUNTIME_TOOL_DEFINITIONS: ToolDefinition[] = [
         },
         instance_id: {
           type: 'string',
-          description: 'Which connected Studio place to target. Required when multiple places are connected; omit when one. Use get_connected_instances to list available IDs.'
+          description: 'Connected Studio place id. Required only when multiple places are open.'
         }
       },
       required: ['entries']
@@ -334,7 +334,7 @@ export const RUNTIME_TOOL_DEFINITIONS: ToolDefinition[] = [
         },
         instance_id: {
           type: 'string',
-          description: 'Which connected Studio place to target. Required when multiple places are connected; omit when one. Use get_connected_instances to list available IDs.'
+          description: 'Connected Studio place id. Required only when multiple places are open.'
         }
       },
       required: ['numPlayers']
@@ -371,7 +371,7 @@ export const RUNTIME_TOOL_DEFINITIONS: ToolDefinition[] = [
         },
         instance_id: {
           type: 'string',
-          description: 'Which connected Studio place to target. Required when multiple places are connected; omit when one. Use get_connected_instances to list available IDs.'
+          description: 'Connected Studio place id. Required only when multiple places are open.'
         }
       },
       required: ['numPlayers']
@@ -394,7 +394,7 @@ export const RUNTIME_TOOL_DEFINITIONS: ToolDefinition[] = [
         },
         instance_id: {
           type: 'string',
-          description: 'Which connected Studio place to target. Required when multiple places are connected; omit when one. Use get_connected_instances to list available IDs.'
+          description: 'Connected Studio place id. Required only when multiple places are open.'
         }
       }
     }
@@ -415,7 +415,7 @@ export const RUNTIME_TOOL_DEFINITIONS: ToolDefinition[] = [
         },
         instance_id: {
           type: 'string',
-          description: 'Which connected Studio place to target. Required when multiple places are connected; omit when one. Use get_connected_instances to list available IDs.'
+          description: 'Connected Studio place id. Required only when multiple places are open.'
         }
       }
     }
@@ -445,7 +445,7 @@ export const RUNTIME_TOOL_DEFINITIONS: ToolDefinition[] = [
         },
         instance_id: {
           type: 'string',
-          description: 'Which connected Studio place to target. Required when multiple places are connected; omit when one. Use get_connected_instances to list available IDs.'
+          description: 'Connected Studio place id. Required only when multiple places are open.'
         }
       }
     }
@@ -507,7 +507,7 @@ export const RUNTIME_TOOL_DEFINITIONS: ToolDefinition[] = [
         },
         instance_id: {
           type: 'string',
-          description: 'Which connected Studio place to target. Required when multiple places are connected; omit when one. Use get_connected_instances to list available IDs.'
+          description: 'Connected Studio place id. Required only when multiple places are open.'
         }
       }
     }
@@ -558,7 +558,7 @@ export const RUNTIME_TOOL_DEFINITIONS: ToolDefinition[] = [
         },
         instance_id: {
           type: 'string',
-          description: 'Which connected Studio place to target. Required when multiple places are connected; omit when one. Use get_connected_instances to list available IDs.'
+          description: 'Connected Studio place id. Required only when multiple places are open.'
         }
       },
       required: ['action']
@@ -586,7 +586,7 @@ export const RUNTIME_TOOL_DEFINITIONS: ToolDefinition[] = [
       properties: {
         instance_id: {
           type: 'string',
-          description: 'Which connected Studio place to target. Required when multiple places are connected; omit when one. Use get_connected_instances to list available IDs.'
+          description: 'Connected Studio place id. Required only when multiple places are open.'
         }
       }
     }
@@ -600,7 +600,7 @@ export const RUNTIME_TOOL_DEFINITIONS: ToolDefinition[] = [
       properties: {
         instance_id: {
           type: 'string',
-          description: 'Which connected Studio place to target. Required when multiple places are connected; omit when one. Use get_connected_instances to list available IDs.'
+          description: 'Connected Studio place id. Required only when multiple places are open.'
         }
       }
     }

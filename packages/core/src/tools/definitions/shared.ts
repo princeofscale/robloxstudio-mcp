@@ -1,7 +1,7 @@
 // Shared schema fragments used by generated-Luau builder and media tool schemas.
 export const INSTANCE_ID_PROP = {
   type: 'string',
-  description: 'Which connected Studio place to target. Required when multiple places are connected; omit when one. Use get_connected_instances to list available IDs.',
+  description: 'Connected Studio place id. Required only when multiple places are open.',
 };
 
 export const UDIM2_PROP = {

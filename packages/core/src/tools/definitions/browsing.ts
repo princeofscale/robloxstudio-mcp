@@ -15,7 +15,7 @@ export const BROWSING_TOOL_DEFINITIONS: ToolDefinition[] = [
         },
         instance_id: {
           type: 'string',
-          description: 'Which connected Studio place to target. Required when multiple places are connected; omit when one. Use get_connected_instances to list available IDs.'
+          description: 'Connected Studio place id. Required only when multiple places are open.'
         }
       }
     }
@@ -38,7 +38,7 @@ export const BROWSING_TOOL_DEFINITIONS: ToolDefinition[] = [
         },
         instance_id: {
           type: 'string',
-          description: 'Which connected Studio place to target. Required when multiple places are connected; omit when one. Use get_connected_instances to list available IDs.'
+          description: 'Connected Studio place id. Required only when multiple places are open.'
         }
       },
       required: ['query']
@@ -55,7 +55,7 @@ export const BROWSING_TOOL_DEFINITIONS: ToolDefinition[] = [
       properties: {
         instance_id: {
           type: 'string',
-          description: 'Which connected Studio place to target. Required when multiple places are connected; omit when one. Use get_connected_instances to list available IDs.'
+          description: 'Connected Studio place id. Required only when multiple places are open.'
         }
       }
     }
@@ -73,7 +73,7 @@ export const BROWSING_TOOL_DEFINITIONS: ToolDefinition[] = [
         },
         instance_id: {
           type: 'string',
-          description: 'Which connected Studio place to target. Required when multiple places are connected; omit when one. Use get_connected_instances to list available IDs.'
+          description: 'Connected Studio place id. Required only when multiple places are open.'
         }
       }
     }
@@ -103,7 +103,7 @@ export const BROWSING_TOOL_DEFINITIONS: ToolDefinition[] = [
         fields: { type: 'array', items: { type: 'string' }, description: 'Keep only these fields per result (e.g. ["name","className"]) to cut tokens.' },
         instance_id: {
           type: 'string',
-          description: 'Which connected Studio place to target. Required when multiple places are connected; omit when one. Use get_connected_instances to list available IDs.'
+          description: 'Connected Studio place id. Required only when multiple places are open.'
         }
       },
       required: ['query']
@@ -128,7 +128,7 @@ export const BROWSING_TOOL_DEFINITIONS: ToolDefinition[] = [
         },
         instance_id: {
           type: 'string',
-          description: 'Which connected Studio place to target. Required when multiple places are connected; omit when one. Use get_connected_instances to list available IDs.'
+          description: 'Connected Studio place id. Required only when multiple places are open.'
         }
       },
       required: ['instancePath']
@@ -147,7 +147,7 @@ export const BROWSING_TOOL_DEFINITIONS: ToolDefinition[] = [
         },
         instance_id: {
           type: 'string',
-          description: 'Which connected Studio place to target. Required when multiple places are connected; omit when one. Use get_connected_instances to list available IDs.'
+          description: 'Connected Studio place id. Required only when multiple places are open.'
         }
       },
       required: ['instancePath']
@@ -170,7 +170,7 @@ export const BROWSING_TOOL_DEFINITIONS: ToolDefinition[] = [
         },
         instance_id: {
           type: 'string',
-          description: 'Which connected Studio place to target. Required when multiple places are connected; omit when one. Use get_connected_instances to list available IDs.'
+          description: 'Connected Studio place id. Required only when multiple places are open.'
         }
       },
       required: ['propertyName', 'propertyValue']
@@ -189,7 +189,7 @@ export const BROWSING_TOOL_DEFINITIONS: ToolDefinition[] = [
         },
         instance_id: {
           type: 'string',
-          description: 'Which connected Studio place to target. Required when multiple places are connected; omit when one. Use get_connected_instances to list available IDs.'
+          description: 'Connected Studio place id. Required only when multiple places are open.'
         }
       },
       required: ['className']
@@ -218,7 +218,7 @@ export const BROWSING_TOOL_DEFINITIONS: ToolDefinition[] = [
         },
         instance_id: {
           type: 'string',
-          description: 'Which connected Studio place to target. Required when multiple places are connected; omit when one. Use get_connected_instances to list available IDs.'
+          description: 'Connected Studio place id. Required only when multiple places are open.'
         }
       }
     }

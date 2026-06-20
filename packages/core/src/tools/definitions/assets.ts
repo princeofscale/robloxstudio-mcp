@@ -96,7 +96,7 @@ export const ASSET_TOOL_DEFINITIONS: ToolDefinition[] = [
         },
         instance_id: {
           type: 'string',
-          description: 'Which connected Studio place to target. Required when multiple places are connected; omit when one. Use get_connected_instances to list available IDs.'
+          description: 'Connected Studio place id. Required only when multiple places are open.'
         }
       },
       required: ['assetId']
@@ -123,7 +123,7 @@ export const ASSET_TOOL_DEFINITIONS: ToolDefinition[] = [
         },
         instance_id: {
           type: 'string',
-          description: 'Which connected Studio place to target. Required when multiple places are connected; omit when one. Use get_connected_instances to list available IDs.'
+          description: 'Connected Studio place id. Required only when multiple places are open.'
         }
       },
       required: ['assetId']
@@ -183,7 +183,7 @@ export const ASSET_TOOL_DEFINITIONS: ToolDefinition[] = [
         },
         instance_id: {
           type: 'string',
-          description: 'Which connected Studio place to target. Required when multiple places are connected; omit when one. Use get_connected_instances to list available IDs.'
+          description: 'Connected Studio place id. Required only when multiple places are open.'
         }
       },
     }
