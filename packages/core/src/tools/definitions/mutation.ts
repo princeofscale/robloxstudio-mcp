@@ -336,5 +336,36 @@ export const MUTATION_TOOL_DEFINITIONS: ToolDefinition[] = [
     }
   },
 
+  {
+    name: 'apply_mutation_plan',
+    category: 'write',
+    description: 'Apply many small edits in ONE round-trip as a transaction: set_property (primitive values), set_attribute, add_tag, remove_tag. Returns a per-op result with before/after, and a ready-to-run `rollback` plan (a reverse mutation plan you can pass straight back to undo). Use dryRun:true to preview the diff without changing anything; large plans require confirm:true. For Vector3/Color3/Enum property values use set_property instead (full type deserialization).',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        operations: {
+          type: 'array',
+          description: 'Ordered list of operations.',
+          items: {
+            type: 'object',
+            properties: {
+              op: { type: 'string', enum: ['set_property', 'set_attribute', 'add_tag', 'remove_tag'] },
+              target: { type: 'string', description: 'Instance path, e.g. game.Workspace.Part' },
+              property: { type: 'string', description: 'For set_property.' },
+              name: { type: 'string', description: 'For set_attribute.' },
+              tag: { type: 'string', description: 'For add_tag / remove_tag.' },
+              value: { type: ['boolean', 'number', 'string'], description: 'For set_property / set_attribute (primitive).' }
+            },
+            required: ['op', 'target']
+          }
+        },
+        dryRun: { type: 'boolean', description: 'Preview the diff without applying (default false).' },
+        confirm: { type: 'boolean', description: 'Approve a large plan the safety layer gates.' },
+        instance_id: { type: 'string', description: 'Connected Studio place id. Required only when multiple places are open.' }
+      },
+      required: ['operations']
+    }
+  },
+
   // === Calculated/Relative Properties ===
 ];

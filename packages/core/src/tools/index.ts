@@ -13,6 +13,7 @@ import { compactText } from '../compact.js';
 import { shapeListResponse } from '../response-shape.js';
 import { buildSceneSummaryLuau } from '../builders/scene-summary.js';
 import { buildPlaytestSampleLuau, type TelemetryDomain } from '../builders/playtest-telemetry.js';
+import { buildMutationPlanLuau, type MutationOp } from '../builders/mutation-plan.js';
 import { type SnapshotLevel } from '../builders/world-model.js';
 import { type ToolDomain } from './tool-catalog.js';
 import { DiscoveryTools } from './discovery-tools.js';
@@ -3507,6 +3508,22 @@ export class RobloxStudioTools {
     // a few tokens to understand a scene's shape vs thousands for get_descendants.
     const code = buildSceneSummaryLuau(instancePath ?? 'game.Workspace', topN ?? 20);
     return this._runGeneratedLuau(code, instance_id);
+  }
+
+  // Transactional batch mutations: apply many small edits in one round-trip with a
+  // dry-run diff and a ready-to-run reverse plan in the receipt (stateless rollback).
+  async applyMutationPlan(operations: MutationOp[], dryRun?: boolean, confirm?: boolean, instance_id?: string) {
+    if (!Array.isArray(operations) || operations.length === 0) {
+      throw new Error('operations (a non-empty array) is required for apply_mutation_plan');
+    }
+    // Only gate the apply path; dry-run is a safe preview that should always run.
+    if (!dryRun) {
+      const gated = this._safetyGate('bulk_mutate', `apply ${operations.length} mutation(s)`, { count: operations.length }, { confirm });
+      if (gated) return gated;
+    }
+    const response = await this._callSingle('/api/execute-luau', { code: buildMutationPlanLuau(operations, !!dryRun) }, 'edit', instance_id);
+    if (!dryRun) this.safety.recordOperation({ kind: 'bulk_mutate', summary: `mutation plan: ${operations.length} ops` });
+    return { content: [{ type: 'text', text: JSON.stringify(response) }] as ToolContent[] };
   }
 
   // Live playtest telemetry: sample runtime state (players/world/audio/runtime) on

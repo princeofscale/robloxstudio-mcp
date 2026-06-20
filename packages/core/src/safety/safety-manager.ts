@@ -10,6 +10,7 @@ export type OperationKind =
   | 'bulk_create'
   | 'bulk_delete'
   | 'bulk_duplicate'
+  | 'bulk_mutate'
   | 'set_script_source'
   | 'replace_in_scripts'
   | 'execute_luau'
@@ -163,7 +164,7 @@ export class SafetyManager {
     // Only object-count kinds use this; terrain kinds carry a studs³ volume in
     // `count` and are governed by maxTerrainVolume below instead.
     const isBulkObjectKind =
-      input.kind === 'bulk_create' || input.kind === 'bulk_delete' || input.kind === 'bulk_duplicate';
+      input.kind === 'bulk_create' || input.kind === 'bulk_delete' || input.kind === 'bulk_duplicate' || input.kind === 'bulk_mutate';
     if (isBulkObjectKind && typeof input.count === 'number') {
       if (input.count > this.config.maxObjectsPerOperation) {
         blocked = true;

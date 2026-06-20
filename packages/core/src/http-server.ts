@@ -37,6 +37,7 @@ export const TOOL_HANDLERS: Record<string, ToolHandler> = {
   get_changes_since: (tools, body) => tools.getChangesSince(body.snapshotId, body.path, body.instance_id),
   scene_search: (tools, body) => tools.sceneSearch(body.query, body.path, body.limit, body.instance_id),
   playtest_sample_state: (tools, body) => tools.playtestSampleState(body.domains, body.target, body.instance_id),
+  apply_mutation_plan: (tools, body) => tools.applyMutationPlan(body.operations, body.dryRun, body.confirm, body.instance_id),
   asset_preflight_insert: (tools, body) => tools.assetPreflightInsert(body.assetId, body.instance_id),
   execute_luau_async: (tools, body) => tools.executeLuauAsync(body.code, body.target, body.instance_id, { dryRun: body.dryRun, confirm: body.confirm }),
   get_job_status: (tools, body) => tools.getJobStatus(body.jobId, body.target, body.instance_id),

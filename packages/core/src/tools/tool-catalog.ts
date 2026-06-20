@@ -91,6 +91,7 @@ const DOMAIN_OVERRIDES: Record<string, ToolDomain> = {
   smart_duplicate: 'mutation',
   mass_duplicate: 'mutation',
   bulk_set_attributes: 'mutation',
+  apply_mutation_plan: 'mutation',
 };
 
 // Ordered prefix rules, applied after CORE and OVERRIDES.

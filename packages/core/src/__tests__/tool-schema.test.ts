@@ -152,6 +152,7 @@ describe('Tool schema compatibility', () => {
       delete_object: 'deleteObject',
       smart_duplicate: 'smartDuplicate',
       mass_duplicate: 'massDuplicate',
+      apply_mutation_plan: 'applyMutationPlan',
       grep_scripts: 'grepScripts',
       get_script_source: 'getScriptSource',
       set_script_source: 'setScriptSource',
