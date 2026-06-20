@@ -53,15 +53,32 @@ export const TOOLBOX_CATEGORIES: Record<string, string> = {
 };
 
 const DEFAULT_BASE_URL = 'https://apis.roblox.com/toolbox-service/v1';
+const V2_BASE_URL = 'https://apis.roblox.com/toolbox-service/v2';
 const THUMBNAIL_BASE = 'https://www.roblox.com/asset-thumbnail/image';
+
+// Search backend selection. The public toolbox v1 path is undocumented but works
+// key-free; the official Creator Store v2 (`/v2/assets:search`) is documented but
+// currently marked Beta / Not Recommended. So we keep v1 as the default and let v2
+// be opted into (flag/key), with automatic fallback to v1 if v2 errors — a
+// provider abstraction, not a blind migration. `asset_preflight_insert` stays the
+// source of truth for insertability regardless of which provider found the asset.
+export type MarketplaceProvider = 'auto' | 'v1' | 'v2';
 
 export class MarketplaceClient {
   private readonly baseUrl: string;
+  private readonly v2BaseUrl: string;
   private readonly fetchImpl: typeof fetch;
+  private readonly provider: MarketplaceProvider;
 
-  constructor(options: { baseUrl?: string; fetchImpl?: typeof fetch } = {}) {
+  constructor(options: { baseUrl?: string; v2BaseUrl?: string; fetchImpl?: typeof fetch; provider?: MarketplaceProvider } = {}) {
     this.baseUrl = options.baseUrl ?? DEFAULT_BASE_URL;
+    this.v2BaseUrl = options.v2BaseUrl ?? V2_BASE_URL;
     this.fetchImpl = options.fetchImpl ?? fetch;
+    // Default resolves from env so an operator can opt into v2 without code changes;
+    // unset/unknown → 'auto' (which currently means v1-first).
+    const envProvider = (process.env.ROBLOX_MARKETPLACE_PROVIDER ?? '').toLowerCase();
+    this.provider = options.provider
+      ?? (envProvider === 'v1' || envProvider === 'v2' ? envProvider : 'auto');
   }
 
   private resolveCategory(category?: string): string {
@@ -211,13 +228,42 @@ export class MarketplaceClient {
     }
   }
 
-  async search(params: MarketplaceSearchParams): Promise<MarketplaceAsset[]> {
-    if (!params.keyword || !params.keyword.trim()) {
-      throw new Error('A keyword is required for marketplace search.');
+  /** Official Creator Store v2 search URL (`/v2/assets:search`). */
+  buildV2SearchUrl(params: MarketplaceSearchParams): string {
+    const limit = Math.max(1, Math.min(50, Math.floor(params.limit ?? 10)));
+    const query = new URLSearchParams({ q: params.keyword, limit: String(limit) });
+    const category = this.resolveCategory(params.category);
+    if (category) query.set('assetType', category);
+    return `${this.v2BaseUrl}/assets:search?${query.toString()}`;
+  }
+
+  /** Parse the v2 search response defensively (field names may shift while Beta). */
+  parseV2Results(json: unknown): MarketplaceAsset[] {
+    const root = json as { data?: unknown; assets?: unknown };
+    const data = Array.isArray(root?.data) ? root.data : (Array.isArray(root?.assets) ? root.assets : undefined);
+    if (!Array.isArray(data)) return [];
+    const out: MarketplaceAsset[] = [];
+    for (const entry of data) {
+      if (!entry || typeof entry !== 'object') continue;
+      const e = entry as Record<string, any>;
+      const asset = (e.asset && typeof e.asset === 'object') ? e.asset : e;
+      const id = Number(asset.id ?? asset.assetId ?? e.assetId);
+      if (!Number.isFinite(id) || id <= 0) continue;
+      const creatorName = (e.creator && typeof e.creator === 'object' ? e.creator.name : undefined) ?? asset.creatorName;
+      out.push({
+        id,
+        name: String(asset.name ?? e.name ?? `Asset ${id}`),
+        creatorName: creatorName ? String(creatorName) : undefined,
+        assetTypeId: Number.isFinite(Number(asset.typeId ?? asset.assetTypeId)) ? Number(asset.typeId ?? asset.assetTypeId) : undefined,
+        thumbnailUrl: this.buildThumbnailUrl(id),
+      });
     }
+    return out;
+  }
+
+  private async searchV1(params: MarketplaceSearchParams): Promise<MarketplaceAsset[]> {
     const url = this.buildSearchUrl(params);
     const headers: Record<string, string> = { Accept: 'application/json' };
-
     let res = await this.fetchImpl(url, { headers });
     // Roblox endpoints sometimes reject the first call with 403 + an
     // x-csrf-token to echo on the retry.
@@ -228,7 +274,33 @@ export class MarketplaceClient {
     if (!res.ok) {
       throw new Error(`Marketplace search failed (HTTP ${res.status}). Roblox's public toolbox may be rate-limited; retry shortly.`);
     }
-    const hits = this.parseSearchResults(await res.json());
+    return this.parseSearchResults(await res.json());
+  }
+
+  private async searchV2(params: MarketplaceSearchParams): Promise<MarketplaceAsset[]> {
+    const url = this.buildV2SearchUrl(params);
+    const res = await this.fetchImpl(url, { headers: { Accept: 'application/json' } });
+    if (!res.ok) throw new Error(`Creator Store v2 search failed (HTTP ${res.status}).`);
+    return this.parseV2Results(await res.json());
+  }
+
+  async search(params: MarketplaceSearchParams): Promise<MarketplaceAsset[]> {
+    if (!params.keyword || !params.keyword.trim()) {
+      throw new Error('A keyword is required for marketplace search.');
+    }
+    // Provider order: v2 only when explicitly selected (it's Beta/Not Recommended),
+    // and always fall back to the proven key-free v1 if v2 errors.
+    let hits: MarketplaceAsset[] | undefined;
+    if (this.provider === 'v2') {
+      try {
+        hits = await this.searchV2(params);
+      } catch {
+        hits = undefined; // fall through to v1
+      }
+    }
+    if (hits === undefined) {
+      hits = await this.searchV1(params);
+    }
     const enriched = await this.enrich(hits);
     return this.rankByRelevanceAndPopularity(enriched, params.keyword);
   }

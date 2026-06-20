@@ -173,3 +173,40 @@ describe('MarketplaceClient.rankByRelevanceAndPopularity', () => {
     expect(ranked[0].id).toBe(2);
   });
 });
+
+describe('MarketplaceClient provider abstraction (v2 + fallback)', () => {
+  it('builds the official v2 search URL', () => {
+    const client = new MarketplaceClient();
+    const url = client.buildV2SearchUrl({ keyword: 'oak tree', category: 'Model', limit: 5 });
+    expect(url).toContain('/toolbox-service/v2/assets:search');
+    expect(url).toContain('q=oak+tree');
+    expect(url).toContain('limit=5');
+  });
+
+  it('parses the v2 shape defensively (data or assets array)', () => {
+    const client = new MarketplaceClient();
+    const hits = client.parseV2Results({ data: [{ asset: { id: 7, name: 'Oak', typeId: 10 }, creator: { name: 'Bob' } }] });
+    expect(hits[0]).toMatchObject({ id: 7, name: 'Oak', creatorName: 'Bob', assetTypeId: 10 });
+    expect(hits[0].thumbnailUrl).toContain('assetId=7');
+  });
+
+  it('falls back to v1 when v2 errors', async () => {
+    const calls: string[] = [];
+    const fetchImpl = (async (url: string) => {
+      calls.push(url);
+      if (url.includes('/v2/')) return { ok: false, status: 500, headers: new Map() } as any;
+      // v1 search + items/details both return a usable shape
+      return {
+        ok: true,
+        status: 200,
+        headers: new Map(),
+        json: async () => ({ data: [{ asset: { id: 42, name: 'Pine' } }] }),
+      } as any;
+    }) as unknown as typeof fetch;
+    const client = new MarketplaceClient({ provider: 'v2', fetchImpl });
+    const results = await client.search({ keyword: 'pine' });
+    expect(calls.some((u) => u.includes('/v2/'))).toBe(true);
+    expect(calls.some((u) => u.includes('/v1/'))).toBe(true);
+    expect(results.some((r) => r.id === 42)).toBe(true);
+  });
+});
