@@ -12,6 +12,8 @@ import { typedError, responseErrorCode } from '../errors.js';
 import { compactText } from '../compact.js';
 import { shapeListResponse } from '../response-shape.js';
 import { buildSceneSummaryLuau } from '../builders/scene-summary.js';
+import { buildCatalog, searchCatalog, type CatalogEntry, type ToolDomain } from './tool-catalog.js';
+import { TOOL_DEFINITIONS } from './definitions.js';
 import {
   buildCreateSoundLuau,
   buildPlaySoundLuau,
@@ -3485,6 +3487,28 @@ export class RobloxStudioTools {
     // a few tokens to understand a scene's shape vs thousands for get_descendants.
     const code = buildSceneSummaryLuau(instancePath ?? 'game.Workspace', topN ?? 20);
     return this._runGeneratedLuau(code, instance_id);
+  }
+
+  // Discovery: search the server's own tool catalog so an agent can find the
+  // right tool without loading every schema. Pure (no Studio round-trip); the
+  // catalog is built once from TOOL_DEFINITIONS and cached.
+  private static _catalog: CatalogEntry[] | undefined;
+  async toolCatalogSearch(body: { query: string; domains?: ToolDomain[]; readOnly?: boolean; limit?: number }) {
+    if (!RobloxStudioTools._catalog) {
+      RobloxStudioTools._catalog = buildCatalog(TOOL_DEFINITIONS);
+    }
+    const matches = searchCatalog(RobloxStudioTools._catalog, {
+      query: body?.query ?? '',
+      domains: body?.domains,
+      readOnly: body?.readOnly,
+      limit: body?.limit,
+    });
+    return {
+      content: [{
+        type: 'text',
+        text: JSON.stringify({ query: body?.query ?? '', count: matches.length, matches }),
+      }],
+    };
   }
 
   async compareInstances(instancePathA: string, instancePathB: string, instance_id?: string) {

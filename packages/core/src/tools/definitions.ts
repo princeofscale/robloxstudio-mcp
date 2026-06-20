@@ -6,6 +6,7 @@ import { BUILD_TOOL_DEFINITIONS } from './definitions/builds.js';
 import { ASSET_TOOL_DEFINITIONS } from './definitions/assets.js';
 import { SCENE_TOOL_DEFINITIONS } from './definitions/scene.js';
 import { GENERATED_TOOL_DEFINITIONS } from './definitions/generated.js';
+import { META_TOOL_DEFINITIONS } from './definitions/meta.js';
 
 export type ToolCategory = 'read' | 'write';
 
@@ -25,6 +26,7 @@ export const TOOL_DEFINITIONS: ToolDefinition[] = [
   ...ASSET_TOOL_DEFINITIONS,
   ...SCENE_TOOL_DEFINITIONS,
   ...GENERATED_TOOL_DEFINITIONS,
+  ...META_TOOL_DEFINITIONS,
 ];
 
 export const getReadOnlyTools = () => TOOL_DEFINITIONS.filter(t => t.category === 'read');

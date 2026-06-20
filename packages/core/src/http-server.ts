@@ -23,6 +23,7 @@ interface StreamableHttpConfig {
 export type ToolHandler = (tools: RobloxStudioTools, body: any) => Promise<any>;
 
 export const TOOL_HANDLERS: Record<string, ToolHandler> = {
+  tool_catalog_search: (tools, body) => tools.toolCatalogSearch(body),
   get_file_tree: (tools, body) => tools.getFileTree(body.path, body.instance_id),
   search_files: (tools, body) => tools.searchFiles(body.query, body.searchType, body.instance_id),
   get_place_info: (tools, body) => tools.getPlaceInfo(body.instance_id),

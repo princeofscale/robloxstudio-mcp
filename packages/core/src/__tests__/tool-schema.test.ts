@@ -7,6 +7,7 @@ import { MUTATION_TOOL_DEFINITIONS } from '../tools/definitions/mutation.js';
 import { SCENE_TOOL_DEFINITIONS } from '../tools/definitions/scene.js';
 import { RUNTIME_TOOL_DEFINITIONS } from '../tools/definitions/runtime.js';
 import { SCRIPTING_TOOL_DEFINITIONS } from '../tools/definitions/scripting.js';
+import { META_TOOL_DEFINITIONS } from '../tools/definitions/meta.js';
 import { TOOL_HANDLERS } from '../http-server.js';
 import { RobloxStudioTools } from '../tools/index.js';
 import { BridgeService } from '../bridge-service.js';
@@ -50,6 +51,7 @@ describe('Tool schema compatibility', () => {
       ...ASSET_TOOL_DEFINITIONS,
       ...SCENE_TOOL_DEFINITIONS,
       ...GENERATED_TOOL_DEFINITIONS,
+      ...META_TOOL_DEFINITIONS,
     ];
     expect(grouped.map((tool) => tool.name)).toEqual(TOOL_DEFINITIONS.map((tool) => tool.name));
     expect(grouped).toEqual(TOOL_DEFINITIONS);
@@ -84,6 +86,8 @@ describe('Tool schema compatibility', () => {
     // AI image generation is server-side (Pollinations + local file / upload).
     'image_generate',
     'image_generate_and_upload',
+    // Discovery tool — searches the server's own catalog, not a Studio place.
+    'tool_catalog_search',
   ]);
 
   function toolHandlerBody(toolName: string): string {
