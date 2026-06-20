@@ -10,6 +10,10 @@ import { Job } from "../types";
 const jobs = new Map<string, Job>();
 const MAX_JOBS = 50;
 
+// Maps a running coroutine to its job id, so the global _G.__mcp helpers can find
+// "which job am I in" via coroutine.running() — concurrency-safe across jobs.
+const threadJobs = new Map<thread, string>();
+
 // Keep the registry bounded: once it grows past MAX_JOBS, drop the oldest
 // finished jobs (never running ones).
 function prune(): void {
@@ -42,4 +46,32 @@ function get(id: string): Job | undefined {
 	return jobs.get(id);
 }
 
-export = { create, get };
+function bindThread(co: thread, jobId: string): void {
+	threadJobs.set(co, jobId);
+}
+
+function unbindThread(co: thread): void {
+	threadJobs.delete(co);
+}
+
+// Called by _G.__mcp.progress(done, total, msg) from server-generated code.
+function reportProgress(co: thread, done: number, total?: number, message?: string, stage?: string): void {
+	const jobId = threadJobs.get(co);
+	if (jobId === undefined) return;
+	const job = jobs.get(jobId);
+	if (!job || job.status !== "running") return;
+	job.progress = done;
+	if (total !== undefined) job.total = total;
+	if (message !== undefined) job.message = message;
+	if (stage !== undefined) job.stage = stage;
+}
+
+// Called by _G.__mcp.checkCancelled() so long server-generated loops can bail early.
+function isCancelledForThread(co: thread): boolean {
+	const jobId = threadJobs.get(co);
+	if (jobId === undefined) return false;
+	const job = jobs.get(jobId);
+	return job?.cancelled === true;
+}
+
+export = { create, get, bindThread, unbindThread, reportProgress, isCancelledForThread };

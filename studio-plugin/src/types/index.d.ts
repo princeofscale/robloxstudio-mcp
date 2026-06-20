@@ -53,6 +53,10 @@ export interface Job {
 	error?: string;
 	message?: string;
 	cancelled?: boolean;
+	// Cooperative progress, reported by server-generated code via _G.__mcp.progress.
+	progress?: number;
+	total?: number;
+	stage?: string;
 }
 
 export interface ReadyResponse {

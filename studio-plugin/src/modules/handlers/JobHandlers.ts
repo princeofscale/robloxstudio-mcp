@@ -8,13 +8,32 @@
 import LuauExec from "../LuauExec";
 import JobRegistry from "../JobRegistry";
 
+// Install a sanctioned progress/cancel API once. Server-generated long-running
+// Luau (terrain/template/batch builders) can call _G.__mcp.progress(done,total,msg)
+// and _G.__mcp.checkCancelled() to report progress and bail early. We do NOT
+// auto-inject this into arbitrary user code — it's an opt-in cooperative API.
+declare const _G: { __mcp?: unknown };
+function installMcpGlobal(): void {
+	if (_G.__mcp !== undefined) return;
+	_G.__mcp = {
+		progress: (done: number, total?: number, message?: string, stage?: string) => {
+			JobRegistry.reportProgress(coroutine.running(), done, total, message, stage);
+		},
+		checkCancelled: () => JobRegistry.isCancelledForThread(coroutine.running()),
+	};
+}
+installMcpGlobal();
+
 function executeLuauAsync(requestData: Record<string, unknown>) {
 	const code = requestData.code as string;
 	if (!code || code === "") return { error: "Code is required" };
 
 	const job = JobRegistry.create();
 	task.spawn(() => {
+		const co = coroutine.running();
+		JobRegistry.bindThread(co, job.id);
 		const result = LuauExec.execute(code);
+		JobRegistry.unbindThread(co);
 		const j = JobRegistry.get(job.id);
 		if (!j) return;
 		if (j.cancelled === true) {
@@ -45,6 +64,9 @@ function getJobStatus(requestData: Record<string, unknown>) {
 		status: j.status,
 		elapsed,
 		message: j.message,
+		progress: j.progress,
+		total: j.total,
+		stage: j.stage,
 		done: j.status !== "running",
 	};
 }
