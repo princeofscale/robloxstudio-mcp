@@ -73,6 +73,10 @@ const DOMAIN_OVERRIDES: Record<string, ToolDomain> = {
   capture_device_matrix: 'runtime',
   capture_script_profiler: 'runtime',
   breakpoints: 'runtime',
+  execute_luau_async: 'runtime',
+  get_job_status: 'runtime',
+  get_job_result: 'runtime',
+  cancel_job: 'runtime',
   // scene read
   compare_instances: 'scene',
   get_memory_breakdown: 'scene',

@@ -20,6 +20,7 @@ import SceneAnalysisHandlers from "./handlers/SceneAnalysisHandlers";
 import EvalRuntimeHandlers from "./handlers/EvalRuntimeHandlers";
 import BreakpointHandlers from "./handlers/BreakpointHandlers";
 import ScriptProfilerHandlers from "./handlers/ScriptProfilerHandlers";
+import JobHandlers from "./handlers/JobHandlers";
 import ClientBroker from "./ClientBroker";
 import ServerUrlSettings from "./ServerUrlSettings";
 import HttpDiagnostics from "./HttpDiagnostics";
@@ -140,6 +141,10 @@ const routeMap: Record<string, Handler> = {
 	"/api/get-tagged": MetadataHandlers.getTagged,
 	"/api/get-selection": MetadataHandlers.getSelection,
 	"/api/execute-luau": MetadataHandlers.executeLuau,
+	"/api/execute-luau-async": JobHandlers.executeLuauAsync,
+	"/api/get-job-status": JobHandlers.getJobStatus,
+	"/api/get-job-result": JobHandlers.getJobResult,
+	"/api/cancel-job": JobHandlers.cancelJob,
 	"/api/eval-runtime": EvalRuntimeHandlers.evalRuntime,
 	"/api/undo": MetadataHandlers.undo,
 	"/api/redo": MetadataHandlers.redo,

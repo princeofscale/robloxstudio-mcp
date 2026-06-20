@@ -605,4 +605,61 @@ export const RUNTIME_TOOL_DEFINITIONS: ToolDefinition[] = [
       }
     }
   },
+  // === Async Luau jobs (avoids long-poll timeouts on heavy code) ===
+  {
+    name: 'execute_luau_async',
+    category: 'write',
+    description: 'Run heavy/long Luau without risking a connection timeout: returns a jobId immediately while the code runs in the background. Poll get_job_status until done, then get_job_result. Use this instead of execute_luau when the code may take more than ~10s (mass builds, big scene scans). Job state lives in the targeted DataModel — poll status/result with the SAME target.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        code: { type: 'string', description: 'Luau code to run. print()/warn() are captured; the return value is captured.' },
+        target: { type: 'string', description: 'Instance target: "edit" (default), "server", "client-1", etc.' },
+        instance_id: { type: 'string', description: 'Connected Studio place id. Required only when multiple places are open.' }
+      },
+      required: ['code']
+    }
+  },
+  {
+    name: 'get_job_status',
+    category: 'read',
+    description: 'Check an execute_luau_async job: returns status (running/done/error/cancelled), done flag, and elapsed seconds. Poll this until done, then call get_job_result. Use the same target the job was started on.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        jobId: { type: 'string', description: 'Job id returned by execute_luau_async.' },
+        target: { type: 'string', description: 'Instance target the job runs on: "edit" (default), "server", "client-1", etc.' },
+        instance_id: { type: 'string', description: 'Connected Studio place id. Required only when multiple places are open.' }
+      },
+      required: ['jobId']
+    }
+  },
+  {
+    name: 'get_job_result',
+    category: 'read',
+    description: 'Fetch the result of a finished execute_luau_async job (returnValue, output, success/error). Returns status="running" if not done yet — call get_job_status first. Use the same target the job was started on.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        jobId: { type: 'string', description: 'Job id returned by execute_luau_async.' },
+        target: { type: 'string', description: 'Instance target the job runs on: "edit" (default), "server", "client-1", etc.' },
+        instance_id: { type: 'string', description: 'Connected Studio place id. Required only when multiple places are open.' }
+      },
+      required: ['jobId']
+    }
+  },
+  {
+    name: 'cancel_job',
+    category: 'write',
+    description: 'Request cancellation of a running execute_luau_async job. Best-effort: Luau coroutines cannot be force-killed, so the code keeps running but its result is discarded and the job is marked cancelled.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        jobId: { type: 'string', description: 'Job id returned by execute_luau_async.' },
+        target: { type: 'string', description: 'Instance target the job runs on: "edit" (default), "server", "client-1", etc.' },
+        instance_id: { type: 'string', description: 'Connected Studio place id. Required only when multiple places are open.' }
+      },
+      required: ['jobId']
+    }
+  },
 ];

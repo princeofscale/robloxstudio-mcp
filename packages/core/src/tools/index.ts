@@ -1238,6 +1238,37 @@ export class RobloxStudioTools {
     };
   }
 
+  // Async Luau jobs: start returns a jobId immediately; status/result are polled.
+  // Same safety gate as execute_luau, since arbitrary code still runs.
+  async executeLuauAsync(code: string, target?: string, instance_id?: string, options?: SafetyOptions) {
+    if (!code) {
+      throw new Error('Code is required for execute_luau_async');
+    }
+    const gated = this._safetyGate('execute_luau', 'run Luau in Studio (async)', { code }, options);
+    if (gated) return gated;
+    const response = await this._callSingle('/api/execute-luau-async', { code }, target || 'edit', instance_id);
+    this.safety.recordOperation({ kind: 'execute_luau', summary: `started async Luau job (${code.length} chars)` });
+    return { content: [{ type: 'text', text: JSON.stringify(response) }] as ToolContent[] };
+  }
+
+  async getJobStatus(jobId: string, target?: string, instance_id?: string) {
+    if (!jobId) throw new Error('jobId is required for get_job_status');
+    const response = await this._callSingle('/api/get-job-status', { jobId }, target || 'edit', instance_id);
+    return { content: [{ type: 'text', text: JSON.stringify(response) }] as ToolContent[] };
+  }
+
+  async getJobResult(jobId: string, target?: string, instance_id?: string) {
+    if (!jobId) throw new Error('jobId is required for get_job_result');
+    const response = await this._callSingle('/api/get-job-result', { jobId }, target || 'edit', instance_id);
+    return { content: [{ type: 'text', text: JSON.stringify(response) }] as ToolContent[] };
+  }
+
+  async cancelJob(jobId: string, target?: string, instance_id?: string) {
+    if (!jobId) throw new Error('jobId is required for cancel_job');
+    const response = await this._callSingle('/api/cancel-job', { jobId }, target || 'edit', instance_id);
+    return { content: [{ type: 'text', text: JSON.stringify(response) }] as ToolContent[] };
+  }
+
   async evalServerRuntime(code: string, instance_id?: string) {
     if (!code) {
       throw new Error('Code is required for eval_server_runtime');

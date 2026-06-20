@@ -6,7 +6,11 @@ Completed notable changes move to [CHANGELOG.md](./CHANGELOG.md).
 ## Architecture / maintainability
 
 - [ ] Continue splitting `packages/core/src/tools/index.ts` into a smaller `RobloxStudioTools` facade plus domain tool classes/modules for scene, scripts, assets, runtime/playtest, diagnostics, and marketplace/media tools.
-- [ ] Audit schema bloat from ~120 tool definitions loading upfront; trim verbose descriptions and evaluate a `search_tools` / lazy-schema mode for agents that load everything at once.
+- [~] Audit schema bloat from ~120 tool definitions loading upfront. DONE: compressed the duplicated `instance_id` description; added `tool_catalog_search` + a semantic `tool-catalog.ts` (domains, search, `expandToolsets`). TODO (phase 2): opt-in `load_toolset` + hide-by-default deferred loading with `tools/list_changed` in both `server.ts` and `http-server.ts` ListTools handlers.
+
+## World model / read pipeline
+
+- [ ] `get_changes_since(snapshotId)` — incremental changefeed (added/removed/mutated nodes, tag/attribute/script-hash diffs) so the agent doesn't re-pull the world after each action. Needs server-side snapshot storage + diff.
 
 ## Reliability
 

@@ -147,14 +147,14 @@ Responses are already compacted (trimmed floats, dropped null fields) and errors
 
 Where we lead: a real **safety layer**, **game-template generators**, **free marketplace search**, **free sync/history** (Pro-gated in WEPPY), `--doctor`, and a **read-only edition** — all MIT and self-hosted.
 
-## Tool catalog (125 tools)
+## Tool catalog (129 tools)
 
 - **Discovery:** `tool_catalog_search` — find the right tool for a task by domain without loading every schema (token-lean catalog of all tools).
 - **World model:** `get_world_snapshot` (token-lean place overview — counts, top classes, subtree roots, environment) and `get_node_batch` (read chosen fields of many instances in one call) — the cheap inspect-then-drill-down pipeline.
 - **Asset preflight:** `asset_preflight_insert` — authoritatively check whether an asset inserts (isolated `LoadAssetAsync` load + verdict) before touching the scene.
 - **Browse & inspect:** file tree, services, instances, properties, attributes, tags, descendants, scene/memory analysis.
 - **Edit:** create/delete/duplicate/move instances, set properties (typed), bulk operations, script read/patch/replace, grep.
-- **Runtime:** `execute_luau`, server/client runtime eval, playtest start/stop, multiplayer tests, runtime logs, screenshots, input simulation.
+- **Runtime:** `execute_luau`, **async Luau jobs** (`execute_luau_async` + `get_job_status`/`get_job_result`/`cancel_job` — for heavy code that would otherwise risk a connection timeout), server/client runtime eval, playtest start/stop, multiplayer tests, runtime logs, screenshots, input simulation.
 - **Safety layer:** dry-run and confirmation gating on destructive ops, automatic script backups, `get_operation_history`, `list_script_backups`, `restore_script_backup`, undo/redo, hard limits (objects per op, script size, terrain volume), protected-service guards, dangerous-Luau detection.
 - **UI builder:** `ui_create_screen_gui`, `ui_create_frame`, `ui_create_text_label`/`text_button`/`image_label`/`image_button`, `ui_apply_layout`, `ui_make_mobile_friendly`.
 - **Environment:** `environment_set_time_of_day`, `environment_set_lighting_preset` (sunny, sunset, night, horror, cyberpunk, obby, simulator, realistic), `environment_set_atmosphere`, `environment_set_sky`, `environment_create_day_night_cycle_script`.

@@ -42,6 +42,19 @@ export interface PollResponse {
 	knownInstance?: boolean;
 }
 
+export interface Job {
+	id: string;
+	status: "running" | "done" | "error" | "cancelled";
+	startedAt: number;
+	finishedAt?: number;
+	success?: boolean;
+	returnValue?: string;
+	output?: string[];
+	error?: string;
+	message?: string;
+	cancelled?: boolean;
+}
+
 export interface ReadyResponse {
 	success: boolean;
 	assignedRole?: string;
