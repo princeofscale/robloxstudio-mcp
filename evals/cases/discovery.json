@@ -1,0 +1,37 @@
+[
+  {
+    "id": "audio_find_active_music",
+    "prompt": "Find which music is currently playing in the scene and where the sound source is.",
+    "allowed_domains": ["core", "scene", "audio"],
+    "allowedTools": ["tool_catalog_search", "load_toolset", "get_world_snapshot", "get_node_batch", "search_objects"],
+    "gold_tools_any_of": [
+      ["get_world_snapshot", "get_node_batch"],
+      ["tool_catalog_search", "load_toolset", "get_world_snapshot"]
+    ],
+    "must_contain_facts": ["playing state", "sound asset id or path", "location in hierarchy"],
+    "forbiddenTools": ["execute_luau"],
+    "grade_type": "trajectory+answer"
+  },
+  {
+    "id": "marketplace_insert_free_tree",
+    "prompt": "Find a free low-poly tree model in the marketplace and insert one into Workspace.",
+    "allowed_domains": ["core", "assets"],
+    "allowedTools": ["tool_catalog_search", "load_toolset", "marketplace_search", "asset_preflight_insert", "insert_asset", "marketplace_search_and_insert"],
+    "gold_tools_any_of": [
+      ["marketplace_search", "asset_preflight_insert", "insert_asset"],
+      ["marketplace_search_and_insert"]
+    ],
+    "must_contain_facts": ["asset id", "inserted"],
+    "grade_type": "trajectory"
+  },
+  {
+    "id": "env_change_terrain_material",
+    "prompt": "Change the material of the Terrain water to something else.",
+    "allowed_domains": ["core", "scene", "terrain"],
+    "gold_tools_any_of": [
+      ["get_world_snapshot", "terrain_paint_material"],
+      ["tool_catalog_search", "load_toolset", "terrain_paint_material"]
+    ],
+    "grade_type": "trajectory"
+  }
+]
