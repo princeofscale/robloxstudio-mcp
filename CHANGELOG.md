@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.19.0] - 2026-06-20
+
 ### Added
 
 - Added `scene_search` — a ranked, multi-signal "where is X" search (research review's #7, the pragmatic no-vector form): scores each instance across name, tags, attribute keys, parent name, and class, returning the top matches with a score and matched terms. Answers "find the door system", "where is the shop UI", "what controls day/night" — more intent-aware than the single-field `search_objects`. Verified live.
@@ -67,6 +69,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Removed legacy `get_playtest_output` and `get_output_log` tools.
 
-[unreleased]: https://github.com/princeofscale/robloxstudio-mcp/compare/v2.18.0...HEAD
+[unreleased]: https://github.com/princeofscale/robloxstudio-mcp/compare/v2.19.0...HEAD
+[2.19.0]: https://github.com/princeofscale/robloxstudio-mcp/compare/v2.18.0...v2.19.0
 [2.18.0]: https://github.com/princeofscale/robloxstudio-mcp/compare/v2.17.0...v2.18.0
 [2.17.0]: https://github.com/princeofscale/robloxstudio-mcp/compare/v2.16.3...v2.17.0
