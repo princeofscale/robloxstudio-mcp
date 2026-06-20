@@ -32,6 +32,14 @@ studio-plugin/MCPInspectorPlugin.rbxmx
 .codex.json
 .codex/
 
+# AI assistant artifacts
+# NOTE: parts of this repository were developed with AI-assistant tooling.
+# Internal AI-agent process artifacts (planning/spec scaffolding, skill notes,
+# research prompts) are kept local-only and out of version control.
+docs/superpowers/
+.superpowers/
+research-prompt.*
+
 # Development files (keep local only)
 CLAUDE.md
 MCP_Server_Plan.md
