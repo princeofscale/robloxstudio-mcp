@@ -7,6 +7,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.19.3] - 2026-06-21
+
+### Added
+
+- Published first-wave MCP `outputSchema` contracts for stable, object-shaped tools:
+  discovery (`tool_catalog_search`, `load_toolset`), world-model reads
+  (`get_world_snapshot`, `get_node_batch`, `get_changes_since`, `scene_search`),
+  asset preflight, playtest telemetry, gameplay assertions, transactional mutation
+  plans, and recipes. Responses remain dual-format: `structuredContent` for newer
+  clients and the same JSON text block for compatibility.
+- Added schema conformance tests with representative golden payloads so published
+  contracts are validated in CI before they are advertised to MCP clients.
+
+### Changed
+
+- Centralized MCP tool-list shaping so stdio and streamable HTTP advertise
+  `inputSchema`/`outputSchema` consistently from the same helper.
+
 ## [2.19.2] - 2026-06-21
 
 ### Changed
@@ -103,7 +121,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Removed legacy `get_playtest_output` and `get_output_log` tools.
 
-[unreleased]: https://github.com/princeofscale/robloxstudio-mcp/compare/v2.19.2...HEAD
+[unreleased]: https://github.com/princeofscale/robloxstudio-mcp/compare/v2.19.3...HEAD
+[2.19.3]: https://github.com/princeofscale/robloxstudio-mcp/compare/v2.19.2...v2.19.3
 [2.19.2]: https://github.com/princeofscale/robloxstudio-mcp/compare/v2.19.1...v2.19.2
 [2.19.1]: https://github.com/princeofscale/robloxstudio-mcp/compare/v2.19.0...v2.19.1
 [2.19.0]: https://github.com/princeofscale/robloxstudio-mcp/compare/v2.18.0...v2.19.0

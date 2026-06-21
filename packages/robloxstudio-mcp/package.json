@@ -1,6 +1,6 @@
 {
   "name": "@princeofscale/robloxstudio-mcp",
-  "version": "2.19.2",
+  "version": "2.19.3",
   "description": "MCP server for testing, debugging, and controlling Roblox Studio from AI coding tools",
   "main": "dist/index.js",
   "type": "module",

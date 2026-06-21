@@ -2,7 +2,7 @@
   "Name": "Roblox Studio MCP Plugin",
   "Description": "Provides AI tool access to Roblox Studio data through MCP protocol",
   "Author": "MCP Integration",
-  "Version": "1.0.0",
+  "Version": "2.19.3",
   "Id": "robloxstudio-mcp-plugin",
   "Permissions": [
     "HTTP"

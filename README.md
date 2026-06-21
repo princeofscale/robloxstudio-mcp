@@ -149,6 +149,8 @@ Where we lead: a real **safety layer**, **game-template generators**, **free mar
 
 ## Tool catalog (137 tools)
 
+First-wave stable tools also advertise MCP `outputSchema` and continue returning dual-format results (`structuredContent` plus JSON text) for mixed-client compatibility.
+
 - **Discovery:** `tool_catalog_search` — find the right tool for a task by domain without loading every schema (token-lean catalog of all tools) — and `load_toolset` to pull in a domain on demand. With `ROBLOX_MCP_LAZY_TOOLS=1` the server advertises only a small always-on core upfront and expands as `load_toolset` is called (opt-in; off by default).
 - **World model:** `get_world_snapshot` (token-lean place overview — counts, top classes, subtree roots, environment), `get_node_batch` (read chosen fields of many instances in one call), `get_changes_since` (incremental added/removed/changed diff vs a prior snapshot), and `scene_search` (ranked "where is X" search over name/tags/attributes/parent/class) — the cheap inspect-then-drill-down-then-refresh pipeline.
 - **Asset preflight:** `asset_preflight_insert` — authoritatively check whether an asset inserts (isolated `LoadAssetAsync` load + verdict) before touching the scene.
@@ -210,7 +212,7 @@ Install only one variant at a time — don't leave both `MCPPlugin.rbxmx` and `M
 ```bash
 npm install && cd studio-plugin && npm install && cd ..
 npm run build                                            # node packages
-npm run typecheck && npm test                            # 387 unit tests
+npm run typecheck && npm test                            # 407 unit tests
 cd studio-plugin && npm run build && cd ..               # plugin TS → Luau
 node scripts/build-plugin.mjs                            # → MCPPlugin.rbxmx
 node scripts/build-plugin.mjs --variant inspector        # → MCPInspectorPlugin.rbxmx

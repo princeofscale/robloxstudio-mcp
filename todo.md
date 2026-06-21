@@ -63,11 +63,10 @@ still inline in the facade, to extract the same way (one PR each, keep tests gre
 
 ## Other open items
 
-- [ ] **`outputSchema` per tool.** The `structuredContent` + error-envelope halves are
-  done by topology (every tool returns `structuredContent`; failures return the typed
-  envelope). Remaining: declare a strict `outputSchema` per read/orchestration tool +
-  client-validation testing. Deferred deliberately — a strict schema would break mixed
-  clients, so it ships only with the structured-returns sweep.
+- [x] **First-wave `outputSchema` contracts.** Stable read/orchestration tools now
+  publish strict output schemas and have representative schema conformance tests.
+  Remaining broader sweep: mutation/runtime/client-coupled tools whose outputs are
+  still host- or Roblox-state-dependent.
 - [ ] **Propagate `errorEnvelope()` to every remaining tool error return** (large
   mechanical sweep; the dispatch-level envelope already covers thrown errors).
 - [ ] **Mirror deferred tool loading in the `http-server.ts` `/mcp` streamable path** —
