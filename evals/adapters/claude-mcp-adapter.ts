@@ -1,9 +1,11 @@
-// Concrete McpHarnessAdapter: drives Claude (Anthropic SDK) against the live MCP
-// server over stdio, recording a TraceEvent[] + RunMetrics per task. Provider-
-// agnostic interface lives in ../harness.ts; this is the Claude implementation.
+// Concrete McpHarnessAdapter: drives an Anthropic-Messages model against the live
+// MCP server over stdio, recording a TraceEvent[] + RunMetrics per task. Provider-
+// agnostic interface lives in ../harness.ts; this is the Messages-protocol impl.
 //
-// Requires ANTHROPIC_API_KEY in the environment and a connected Roblox Studio (the
-// MCP server bridges to it). Run via ../run.ts.
+// Works with the real Anthropic API (ANTHROPIC_API_KEY) OR any Anthropic-Messages-
+// compatible gateway via `baseURL` + `model` — e.g. OpenModel's free
+// `deepseek-v4-flash` (see ../run.ts for the env wiring). Needs a connected Roblox
+// Studio (the MCP server bridges to it). Run via ../run.ts.
 
 import Anthropic from '@anthropic-ai/sdk';
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
@@ -11,7 +13,7 @@ import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js'
 import type { EvalCase, HarnessMode, McpHarnessAdapter, RunResult } from '../harness.js';
 import type { TraceEvent, RunMetrics } from '../metrics.js';
 
-const MODEL = 'claude-opus-4-8';
+const DEFAULT_MODEL = 'claude-opus-4-8';
 const MAX_ITERATIONS = 14;
 
 interface McpToolDef {
@@ -26,15 +28,31 @@ export interface ClaudeMcpAdapterOptions {
   /** Extra env for the server process (e.g. POLLINATIONS key). */
   serverEnv?: Record<string, string>;
   apiKey?: string;
+  /** Override the API base URL — point at an Anthropic-Messages-compatible gateway. */
+  baseURL?: string;
+  /** Model id to drive (defaults to claude-opus-4-8). */
+  model?: string;
+  /** SDK auto-retries (incl. 429); free gateways need a generous count. Default 8. */
+  maxRetries?: number;
+  /** Fixed delay before each model call, to respect per-user rate limits. Default 0. */
+  requestDelayMs?: number;
 }
 
 export class ClaudeMcpAdapter implements McpHarnessAdapter {
   private readonly anthropic: Anthropic;
+  private readonly model: string;
+  private readonly requestDelayMs: number;
   private client: Client | undefined;
   private transport: StdioClientTransport | undefined;
 
   constructor(private readonly opts: ClaudeMcpAdapterOptions) {
-    this.anthropic = new Anthropic(opts.apiKey ? { apiKey: opts.apiKey } : {});
+    this.anthropic = new Anthropic({
+      ...(opts.apiKey ? { apiKey: opts.apiKey } : {}),
+      ...(opts.baseURL ? { baseURL: opts.baseURL } : {}),
+      maxRetries: opts.maxRetries ?? 8,
+    });
+    this.model = opts.model ?? DEFAULT_MODEL;
+    this.requestDelayMs = Math.max(0, opts.requestDelayMs ?? 0);
   }
 
   async startServer(mode: HarnessMode): Promise<void> {
@@ -84,8 +102,9 @@ export class ClaudeMcpAdapter implements McpHarnessAdapter {
     let success = false;
 
     for (let i = 0; i < MAX_ITERATIONS; i++) {
+      if (this.requestDelayMs > 0) await sleep(this.requestDelayMs);
       const response = await this.anthropic.messages.create({
-        model: MODEL,
+        model: this.model,
         max_tokens: 4096,
         tools: toAnthropicTools(),
         messages,
@@ -100,7 +119,14 @@ export class ClaudeMcpAdapter implements McpHarnessAdapter {
       for (const b of response.content) {
         if (b.type === 'text') finalText += b.text;
       }
-      messages.push({ role: 'assistant', content: response.content });
+      // Replay only text + tool_use back into history. Some Messages-compatible
+      // gateways (e.g. deepseek-v4-flash) emit unsolicited `thinking` blocks whose
+      // signatures don't survive a round-trip; we never enabled extended thinking,
+      // so dropping them is safe and avoids signature-validation rejections.
+      const replayContent = response.content.filter(
+        (b) => b.type === 'text' || b.type === 'tool_use',
+      );
+      messages.push({ role: 'assistant', content: replayContent });
 
       if (response.stop_reason !== 'tool_use' || toolUses.length === 0) {
         success = response.stop_reason === 'end_turn';
@@ -152,6 +178,10 @@ export class ClaudeMcpAdapter implements McpHarnessAdapter {
     };
     return { finalAnswer: finalText, trace, metrics };
   }
+}
+
+function sleep(ms: number): Promise<void> {
+  return new Promise((r) => setTimeout(r, ms));
 }
 
 function approxTokens(tools: McpToolDef[]): number {

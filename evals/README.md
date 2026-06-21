@@ -17,21 +17,43 @@ loading on a fixed benchmark and gate CI on regressions.
 
 ## Running it
 
-A concrete Claude adapter ships in `adapters/claude-mcp-adapter.ts` and a runner in
-`run.ts`. Prereqs: the server is built (`npm run build` at the repo root),
-`ANTHROPIC_API_KEY` is set, and Roblox Studio is connected.
+A concrete adapter ships in `adapters/claude-mcp-adapter.ts` (Anthropic-Messages
+protocol) and a runner in `run.ts`. Prereqs: the server is built (`npm run build` at
+the repo root), an API key is set (below), and Roblox Studio is connected.
+
+The runner auto-detects the provider from the environment, in priority order:
 
 ```sh
 cd evals
 npm install
-ANTHROPIC_API_KEY=sk-... npx tsx run.ts        # A/B upfront vs lazy + gate
-ANTHROPIC_API_KEY=sk-... npx tsx run.ts --mode=lazy   # single mode
+
+# 1. OpenModel gateway — free `deepseek-v4-flash` (free event until 2026-06-26):
+OPENMODEL_API_KEY=om-... npx tsx run.ts                 # A/B upfront vs lazy + gate
+OPENMODEL_API_KEY=om-... npx tsx run.ts --mode=lazy     # single mode
+
+# 2. Real Anthropic API (used if OPENMODEL_API_KEY is unset):
+ANTHROPIC_API_KEY=sk-... npx tsx run.ts
 ```
 
+Knobs (env):
+
+- `EVAL_MODEL` — override the model id (default `deepseek-v4-flash` for OpenModel,
+  `claude-opus-4-8` for Anthropic). Any Messages-protocol model on the gateway works
+  (e.g. `deepseek-v4-pro`, `claude-opus-4-8`).
+- `OPENMODEL_BASE_URL` / `ANTHROPIC_BASE_URL` — override the API base URL.
+- `EVAL_REQUEST_DELAY_MS` — fixed delay before each model call (default `2000` for
+  OpenModel to respect its per-user rate limit, `0` for Anthropic).
+
 `ClaudeMcpAdapter` spawns the MCP server over stdio (`ROBLOX_MCP_LAZY_TOOLS` per
-mode), lists its tools, runs a manual Claude tool-use loop (`claude-opus-4-8`),
+mode), lists its tools, runs a manual tool-use loop against the configured model,
 re-lists tools after `load_toolset` in lazy mode, and records a `TraceEvent[]` +
-`RunMetrics` per task.
+`RunMetrics` per task. It drops the gateway's unsolicited `thinking` blocks from the
+replayed history and retries 429s with backoff (`maxRetries`, default 8).
+
+> **Note:** the harness spawns its *own* MCP server and needs the Studio bridge.
+> Don't run it while another MCP client (e.g. an active Claude Code / Cursor session)
+> already holds the bridge — the spawned server falls back to proxy mode and can't
+> reach Studio. Close other MCP clients first, or run evals from a clean shell.
 
 ## Wiring a different model
 
