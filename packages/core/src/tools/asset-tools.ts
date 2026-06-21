@@ -9,7 +9,7 @@
 import { runBuildExecutor } from './build-executor.js';
 import { interpretInsertResponse } from '../assets.js';
 import { toolErrorResult } from '../errors.js';
-import type { SafetyOptions, ToolContent } from './runtime-support.js';
+import type { ToolContent } from './runtime-support.js';
 import type { OpenCloudClient } from '../opencloud-client.js';
 import type { RobloxCookieClient } from '../roblox-cookie-client.js';
 import type { MarketplaceClient } from '../marketplace-client.js';
