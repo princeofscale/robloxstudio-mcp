@@ -96,3 +96,4 @@ roblox-src/
 
 # Eval runtime artifacts (the harness/tools write a local build-library during runs)
 evals/build-library/
+.superpowers/

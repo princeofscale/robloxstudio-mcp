@@ -1,8 +1,8 @@
 <div align="center">
   <picture>
     <source media="(prefers-color-scheme: dark)" srcset="assets/logo.svg">
-    <source media="(prefers-color-scheme: light)" srcset="data/logo.png">
-    <img src="data/logo.png" width="120" alt="Roblox Studio MCP logo" />
+    <source media="(prefers-color-scheme: light)" srcset="assets/logo.png">
+    <img src="assets/logo.png" width="120" alt="Roblox Studio MCP logo" />
   </picture>
   <h1 align="center">Roblox Studio MCP</h1>
   <p align="center">
@@ -18,8 +18,8 @@
 
   <picture>
     <source media="(prefers-color-scheme: dark)" srcset="assets/banner.svg">
-    <source media="(prefers-color-scheme: light)" srcset="data/banner.png">
-    <img src="data/banner.png" width="100%" alt="Roblox Studio MCP banner" />
+    <source media="(prefers-color-scheme: light)" srcset="assets/banner.png">
+    <img src="assets/banner.png" width="100%" alt="Roblox Studio MCP banner" />
   </picture>
 </div>
 
@@ -92,30 +92,30 @@ Your open place: Workspace · ServerScriptService · ReplicatedStorage · Starte
 ## Features (130+ tools)
 
 ### 🔍 Scene inspection
-`get_scene_summary` · `get_node_batch` · `get_changes_since` · `scene_search` · `get_descendants` · `get_file_tree` · properties · attributes · tags · memory/analysis breakdowns  
+`get_scene_summary` · `get_node_batch` · `get_changes_since` · `scene_search` · `get_descendants` · `get_file_tree` · properties · attributes · tags · memory/analysis breakdowns
 → Token-efficient: cheap overview first, then drill down. No full DataModel dump needed.
 
 ### 📝 Script & Luau
-`get_script_source` · `set_script_source` · `edit_script_lines` · `grep_scripts` · `find_and_replace` · `diagnose_scripts` (errors → script:line) · `execute_luau` · async Luau jobs  
+`get_script_source` · `set_script_source` · `edit_script_lines` · `grep_scripts` · `find_and_replace` · `diagnose_scripts` (errors → script:line) · `execute_luau` · async Luau jobs
 → Full read/write/patch over any Script, LocalScript, or ModuleScript.
 
 ### ✏️ Bulk editing
 `apply_mutation_plan` (transactional batch: set property, attribute, tag — one call, rollback included) · `mass_set_property` · `smart_duplicate` · `mass_create_objects` · dry-run on every mutation.
 
 ### 🖥️ UI builder
-`ui_create_screen_gui` · `ui_create_frame` · `ui_create_text_label/button` · `ui_create_image_label/button` · `ui_apply_layout` · `ui_make_mobile_friendly`  
+`ui_create_screen_gui` · `ui_create_frame` · `ui_create_text_label/button` · `ui_create_image_label/button` · `ui_apply_layout` · `ui_make_mobile_friendly`
 → Generate UI entirely from agent prompts.
 
 ### 🌍 Terrain & environment
-**Terrain:** baseplate · island · mountains · water · paint material · clear region (volume-limited, gated).  
+**Terrain:** baseplate · island · mountains · water · paint material · clear region (volume-limited, gated).
 **Environment:** 8 lighting presets (sunny, sunset, night, horror, cyberpunk, obby, simulator, realistic) · atmosphere · sky · day/night cycle script.
 
 ### 🏗 Game templates
-`template_create_obby_game` · `template_create_simulator_game` · `template_create_tycoon_game` · `template_create_round_game`  
+`template_create_obby_game` · `template_create_simulator_game` · `template_create_tycoon_game` · `template_create_round_game`
 → One prompt → lobby + arena + leaderstats + round loop.
 
 ### 🏪 Marketplace & assets
-**No key needed:** `marketplace_search` · `marketplace_search_and_insert` · `insert_asset` · `preview_asset` · `asset_preflight_insert` (authoritative LoadAssetAsync check).  
+**No key needed:** `marketplace_search` · `marketplace_search_and_insert` · `insert_asset` · `preview_asset` · `asset_preflight_insert` (authoritative LoadAssetAsync check).
 **With Open Cloud key:** `search_assets` · `get_asset_details` · `upload_asset` · `.rbxm` import/export · build library CRUD.
 
 ### 🎮 Live debugging
@@ -245,7 +245,7 @@ Check the [todo.md](todo.md) for current priorities and [open an issue](https://
 
 ## License
 
-MIT © princeofscale. Based on [Chrrxs/robloxstudio-mcp](https://github.com/Chrrxs/robloxstudio-mcp) and [boshyxd/robloxstudio-mcp](https://github.com/boshyxd/robloxstudio-mcp).  
+MIT © princeofscale. Based on [Chrrxs/robloxstudio-mcp](https://github.com/Chrrxs/robloxstudio-mcp) and [boshyxd/robloxstudio-mcp](https://github.com/boshyxd/robloxstudio-mcp).
 See [LICENSE](LICENSE) for full text.
 
 ---

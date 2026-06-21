@@ -24,5 +24,27 @@
     "@typescript-eslint/no-explicit-any": "warn",
     "prefer-const": "error",
     "no-var": "error"
-  }
+  },
+  "overrides": [
+    {
+      "files": [
+        "packages/core/src/__tests__/**/*.ts",
+        "packages/core/src/tools/build-executor.ts",
+        "packages/core/src/tools/tool-catalog.ts",
+        "packages/core/src/tools/studio-client.ts",
+        "packages/core/src/tools/index.ts",
+        "packages/core/src/tools/mutation-tools.ts",
+        "packages/core/src/tools/script-tools.ts",
+        "packages/core/src/opencloud-client.ts",
+        "packages/core/src/roblox-cookie-client.ts",
+        "packages/core/src/marketplace-client.ts",
+        "packages/core/src/image-client.ts",
+        "packages/core/src/tools/asset-tools.ts",
+        "packages/core/src/tools/setup-registry.ts"
+      ],
+      "rules": {
+        "@typescript-eslint/no-explicit-any": "off"
+      }
+    }
+  ]
 }

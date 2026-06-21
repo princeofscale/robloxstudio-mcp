@@ -2,7 +2,7 @@
 
 ## Plugin not connecting
 
-**Symptom:** Plugin shows "Disconnected" or nothing.  
+**Symptom:** Plugin shows "Disconnected" or nothing.
 **Most common cause:** **Allow HTTP Requests** is disabled in Game Settings → Security.
 
 **Fix:**

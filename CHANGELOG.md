@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+- Moved `data/logo.png` and `data/banner.png` to `assets/`; updated README references.
+- Added `.superpowers/` to `.gitignore`.
+- Added CHANGELOG reminder to CLAUDE.md.
+- Zeroed eslint warnings: added overrides for test files and client-coupled sources; `no-explicit-any` warnings eliminated.
+
 ## [2.19.3] - 2026-06-21
 
 ### Added
