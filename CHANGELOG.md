@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.19.2] - 2026-06-21
+
 ### Changed
 
 - **Eval-validated lazy tool loading.** First real A/B run of the `evals/` harness
@@ -16,6 +18,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   is upfront tool-schema tokens (which lazy loading cuts), not lexical search recall —
   so the embeddings/semantic-search upgrade stays parked until an eval shows a real
   lexical-recall ceiling.
+- **Domain-split of the `index.ts` facade (maintainability).** Extracted three more
+  domain classes — `SceneReadTools` (14 read/inspect tools), `ScriptTools` (8 script
+  tools), and `MutationTools` (19 scene-write tools) — each delegated from the facade
+  with identical public signatures, so the tool surface and `instance_id` schema-parity
+  invariants are unchanged. `index.ts` dropped ~605 lines (3983 → 3378). No behavior
+  change; 387 unit tests green. (Asset + Runtime domains remain inline, deferred to a
+  separately dogfooded pass — they're the most client-coupled.)
+- Synced all package versions + the bundled Studio plugin to 2.19.2 (clears the
+  plugin/server version-mismatch banner after a Studio restart).
 
 ## [2.19.1] - 2026-06-21
 
@@ -92,7 +103,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Removed legacy `get_playtest_output` and `get_output_log` tools.
 
-[unreleased]: https://github.com/princeofscale/robloxstudio-mcp/compare/v2.19.1...HEAD
+[unreleased]: https://github.com/princeofscale/robloxstudio-mcp/compare/v2.19.2...HEAD
+[2.19.2]: https://github.com/princeofscale/robloxstudio-mcp/compare/v2.19.1...v2.19.2
 [2.19.1]: https://github.com/princeofscale/robloxstudio-mcp/compare/v2.19.0...v2.19.1
 [2.19.0]: https://github.com/princeofscale/robloxstudio-mcp/compare/v2.18.0...v2.19.0
 [2.18.0]: https://github.com/princeofscale/robloxstudio-mcp/compare/v2.17.0...v2.18.0

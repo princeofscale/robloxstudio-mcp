@@ -30,25 +30,36 @@ still inline in the facade, to extract the same way (one PR each, keep tests gre
   get_project_structure, get_descendants, get_scene_summary, compare_instances,
   get_memory_breakdown, get_scene_analysis, get_selection (extracted; index.ts −192
   lines; multi-peer reads share a `_fanOutRead` helper). search_files left inline.
-- [ ] `MutationTools` — create/delete/clone/duplicate, set_property/properties,
-  mass_*, attributes, tags, apply_mutation_plan
-- [ ] `ScriptTools` — get/set/edit/insert/delete script lines, grep,
-  find_and_replace, diagnose_scripts
+- [x] `ScriptTools` — get/set/edit/insert/delete script lines, grep,
+  find_and_replace, diagnose_scripts (extracted; index.ts −171 lines;
+  set_script_source keeps its gate + backup-before-overwrite via injected runtime fns).
+- [x] `MutationTools` — set/mass set+get property, create/mass-create/delete/clone/
+  smart+mass duplicate, attributes, tags, bulk_set_attributes, apply_mutation_plan
+  (extracted; index.ts −242 lines; bulk/destructive ops keep safetyGate + history).
+- [ ] `AssetTools` — search_assets, get_asset_details/thumbnail, insert/preview/upload,
+  marketplace_*, import/export rbxm, image_generate*, import_scene. **DEFERRED — the
+  most client-coupled domain:** uses 4 clients (openCloud/cookie/image/marketplace) +
+  private pipeline helpers (`_generateImageToFile`, `resolveImageId`) + static
+  `findLibraryPath` + heavy fs/fetch/SSRF logic (import/export rbxm, import_scene ~140
+  lines). Unit tests cover builders, NOT this client wiring, so a verbatim move still
+  needs **live dogfooding** through the Studio bridge before trusting it. Do as its own
+  dogfooded pass.
 - [ ] `RuntimeTools` — playtest, multiplayer, eval_*, simulate_*, device/network sim,
   breakpoints, profiler, logs, screenshots, async jobs
   (execute_luau_async/get_job_*/cancel_job), playtest_sample_state,
-  run_gameplay_assertions, undo/redo
-- [ ] `AssetTools` — search_assets, get_asset_details/thumbnail, insert/preview/upload,
-  marketplace_*, import/export rbxm, image_generate*, import_scene
+  run_gameplay_assertions, undo/redo. **DEFERRED** — biggest + most stateful domain
+  (image capture/encoding helpers, job registry, peer routing via `_resolveRuntime`);
+  same "needs live dogfooding" caveat as AssetTools.
 - [ ] Optionally then: a declarative `registerTool(...)` + `withStandardToolPipeline`
   registry so validation/timing/envelope/outputSchema are applied by construction
   (the error envelope is already applied centrally at dispatch).
 
 ### 3. New research-prompt round
 
-- [ ] Generate the next research-prompt → ChatGPT report → next prioritized roadmap
-  (as in rounds A–G). Do this **after** the eval metrics land, so the next round is
-  grounded in data, not feel.
+- [x] Wrote `research-prompt.md` (round 4) — grounded in the first eval datapoint
+  (lazy −77% bootstrap), with explicit questions on making `evals/` decision-grade,
+  whether to un-park Track F/H, and the next frontier. Paste into ChatGPT → next
+  prioritized roadmap.
 
 ## Other open items
 
