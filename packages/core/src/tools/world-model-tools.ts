@@ -9,10 +9,9 @@ import { buildWorldFingerprintLuau } from '../builders/world-fingerprint.js';
 import { buildAssetPreflightLuau } from '../builders/asset-preflight.js';
 import { diffFingerprints, SnapshotStore, type Fingerprint } from '../world-changes.js';
 import { classifyError } from '../errors.js';
-import type { ToolContent } from './runtime-support.js';
+import { normalizeExecuteLuauToolResult, wrapToolJsonText, type ToolContent } from './runtime-support.js';
 
 type WorldModelRuntime = {
-  runGeneratedLuau(code: string, instance_id?: string): Promise<{ content: ToolContent[] }>;
   callSingle(endpoint: string, data: unknown, target: string | undefined, instance_id: string | undefined): Promise<unknown>;
 };
 
@@ -23,21 +22,46 @@ export class WorldModelTools {
 
   async getWorldSnapshot(path?: string, level?: SnapshotLevel, topNPerClass?: number, instance_id?: string) {
     const code = buildWorldSnapshotLuau(path ?? 'game', level ?? 'overview', topNPerClass ?? 12);
-    return this.runtime.runGeneratedLuau(code, instance_id);
+    const response = await this.runtime.callSingle('/api/execute-luau', { code }, 'edit', instance_id);
+    return wrapToolJsonText(normalizeExecuteLuauToolResult(response, {
+      error: 'get_world_snapshot returned non-object execute-luau output',
+    }));
   }
 
   async sceneSearch(query: string, path?: string, limit?: number, instance_id?: string) {
     if (!query || !query.trim()) {
       throw new Error('query is required for scene_search');
     }
-    return this.runtime.runGeneratedLuau(buildSceneSearchLuau(query, path ?? 'game', limit ?? 10), instance_id);
+    const response = await this.runtime.callSingle(
+      '/api/execute-luau',
+      { code: buildSceneSearchLuau(query, path ?? 'game', limit ?? 10) },
+      'edit',
+      instance_id,
+    );
+    return wrapToolJsonText(normalizeExecuteLuauToolResult(response, {
+      query,
+      total: 0,
+      returned: 0,
+      results: [],
+      error: 'scene_search returned non-object execute-luau output',
+    }));
   }
 
   async getNodeBatch(paths: string[], fields?: string[], includeChildrenCount?: boolean, instance_id?: string) {
     if (!Array.isArray(paths) || paths.length === 0) {
       throw new Error('paths (a non-empty array) is required for get_node_batch');
     }
-    return this.runtime.runGeneratedLuau(buildNodeBatchLuau(paths, fields ?? [], includeChildrenCount ?? false), instance_id);
+    const response = await this.runtime.callSingle(
+      '/api/execute-luau',
+      { code: buildNodeBatchLuau(paths, fields ?? [], includeChildrenCount ?? false) },
+      'edit',
+      instance_id,
+    );
+    return wrapToolJsonText(normalizeExecuteLuauToolResult(response, {
+      nodes: [],
+      count: 0,
+      error: 'get_node_batch returned non-object execute-luau output',
+    }));
   }
 
   private async _captureFingerprint(path: string, instance_id?: string): Promise<{ fp: Fingerprint; count: number; truncated: boolean; error?: string }> {

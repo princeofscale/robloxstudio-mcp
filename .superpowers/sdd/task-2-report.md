@@ -56,3 +56,38 @@ Result:
 ## Concerns
 
 - Release metadata remains at `2.19.2` in the focused test output. I did not change versioned package metadata because the Task 2 brief explicitly scoped ownership to four files, and no release metadata file was listed there.
+
+## Fix report
+
+- Added `normalizeExecuteLuauToolResult(...)` and `wrapToolJsonText(...)` in `packages/core/src/tools/runtime-support.ts` to unwrap object-shaped JSON from `/api/execute-luau` bridge responses and emit the existing `{ content: [{ type: 'text', text: JSON.stringify(object) }] }` result shape.
+- Switched the contracted execute-luau-backed handlers called out by review to use targeted normalization instead of the raw bridge envelope:
+  - `get_world_snapshot`
+  - `get_node_batch`
+  - `scene_search`
+  - `apply_mutation_plan`
+  - `apply_recipe`
+  - `playtest_sample_state`
+  - `run_gameplay_assertions`
+- Left `_runGeneratedLuau(...)` unchanged so unrelated generated-Luau tools keep their current behavior.
+- Left `asset_preflight_insert` on its existing bespoke parse path after verifying it already unwraps `returnValue`.
+
+### Focused tests
+
+Red/green regression command:
+
+```bash
+npm test -w packages/core -- contracted-output-normalization.test.ts runtime-support.test.ts --runInBand
+```
+
+Observed results:
+
+1. Red step: failed with two envelope-vs-domain-object assertion diffs plus `TS2305` because `normalizeExecuteLuauToolResult` did not exist yet.
+2. Green step: passed with `2 passed, 2 total` test suites and `6 passed, 6 total` tests.
+
+### Regression coverage added
+
+- `packages/core/src/__tests__/contracted-output-normalization.test.ts`
+  - proves `get_world_snapshot` now returns the parsed inner world object, not `{ success, returnValue, output }`
+  - proves `playtest_sample_state` now returns the parsed inner telemetry object, not `{ success, returnValue, output }`
+- `packages/core/src/__tests__/runtime-support.test.ts`
+  - proves the shared helper unwraps object JSON and falls back to a safe object when `returnValue` is not a JSON string

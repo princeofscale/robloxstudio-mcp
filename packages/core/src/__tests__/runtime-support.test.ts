@@ -2,6 +2,7 @@ import {
   buildNetworkProfileLuau,
   errorMessage,
   normalizeNetworkProfile,
+  normalizeExecuteLuauToolResult,
 } from '../tools/runtime-support.js';
 
 describe('runtime support helpers', () => {
@@ -21,5 +22,21 @@ describe('runtime support helpers', () => {
   it('formats unknown errors safely', () => {
     expect(errorMessage(new Error('boom'))).toBe('boom');
     expect(errorMessage('plain')).toBe('plain');
+  });
+
+  it('unwraps execute-luau JSON payloads and falls back to a safe object', () => {
+    expect(normalizeExecuteLuauToolResult({
+      success: true,
+      returnValue: JSON.stringify({ ok: true, count: 2 }),
+    })).toEqual({ ok: true, count: 2 });
+
+    expect(normalizeExecuteLuauToolResult({
+      success: true,
+      returnValue: 42,
+      output: 'raw',
+    })).toEqual({
+      error: 'execute-luau did not return a JSON object',
+      output: 'raw',
+    });
   });
 });

@@ -91,6 +91,56 @@ export function errorMessage(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
 }
 
+type ExecuteLuauBridgeResponse = {
+  success?: boolean;
+  error?: string;
+  message?: string;
+  output?: unknown;
+  returnValue?: unknown;
+};
+
+export function wrapToolJsonText(payload: unknown): { content: Array<{ type: 'text'; text: string }> } {
+  return { content: [{ type: 'text', text: JSON.stringify(payload) }] };
+}
+
+export function normalizeExecuteLuauToolResult(
+  response: unknown,
+  fallback: Record<string, unknown> = {},
+): Record<string, unknown> {
+  const bridgeResponse = response as ExecuteLuauBridgeResponse | undefined;
+
+  if (typeof bridgeResponse?.returnValue === 'string') {
+    try {
+      const parsed = JSON.parse(bridgeResponse.returnValue);
+      if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
+        return parsed as Record<string, unknown>;
+      }
+    } catch {
+      // Fall through to the object fallback below.
+    }
+  }
+
+  const message = bridgeResponse?.success === false
+    ? bridgeResponse.error || bridgeResponse.message || 'Luau execution failed'
+    : 'execute-luau did not return a JSON object';
+
+  const safeFallback: Record<string, unknown> = {
+    ...fallback,
+    error: bridgeResponse?.success === false
+      ? message
+      : (typeof fallback.error === 'string' ? fallback.error : message),
+  };
+
+  if (bridgeResponse?.success === false) {
+    safeFallback.success = false;
+  }
+  if (bridgeResponse?.output !== undefined) {
+    safeFallback.output = bridgeResponse.output;
+  }
+
+  return safeFallback;
+}
+
 export const NETWORK_PROFILE_KEYS = [
   'InboundNetworkMinDelayMs',
   'OutboundNetworkMinDelayMs',

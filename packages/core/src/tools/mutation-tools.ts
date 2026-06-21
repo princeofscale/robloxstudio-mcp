@@ -9,7 +9,7 @@
 import { compactText } from '../compact.js';
 import { buildMutationPlanLuau, type MutationOp } from '../builders/mutation-plan.js';
 import type { OperationKind } from '../safety/safety-manager.js';
-import type { SafetyOptions, ToolContent } from './runtime-support.js';
+import { normalizeExecuteLuauToolResult, wrapToolJsonText, type SafetyOptions, type ToolContent } from './runtime-support.js';
 
 type MutationToolRuntime = {
   callSingle(endpoint: string, data: unknown, target: string | undefined, instance_id: string | undefined): Promise<any>;
@@ -214,6 +214,13 @@ export class MutationTools {
     }
     const response = await this.runtime.callSingle('/api/execute-luau', { code: buildMutationPlanLuau(operations, !!dryRun) }, 'edit', instance_id);
     if (!dryRun) this.runtime.recordOperation('bulk_mutate', `mutation plan: ${operations.length} ops`);
-    return { content: [{ type: 'text', text: JSON.stringify(response) }] as ToolContent[] };
+    return wrapToolJsonText(normalizeExecuteLuauToolResult(response, {
+      applied: !dryRun,
+      dryRun: !!dryRun,
+      results: [],
+      rollback: [],
+      summary: { total: operations.length, succeeded: 0, failed: operations.length },
+      error: 'apply_mutation_plan returned non-object execute-luau output',
+    }));
   }
 }

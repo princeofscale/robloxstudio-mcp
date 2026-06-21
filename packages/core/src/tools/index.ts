@@ -51,6 +51,7 @@ import {
   encodeImageFromRgbaResponse,
   errorMessage,
   hasDeviceSimulatorSettings,
+  normalizeExecuteLuauToolResult,
   normalizeDeviceSimulatorSettings,
   normalizeNetworkProfile,
   sleep,
@@ -61,6 +62,7 @@ import {
   type SafetyOptions,
   type SimulationInclude,
   type ToolContent,
+  wrapToolJsonText,
 } from './runtime-support.js';
 
 export class RobloxStudioTools {
@@ -99,7 +101,6 @@ export class RobloxStudioTools {
     });
     this.discoveryTools = new DiscoveryTools();
     this.worldTools = new WorldModelTools({
-      runGeneratedLuau: this._runGeneratedLuau.bind(this),
       callSingle: this._callSingle.bind(this),
     });
     this.safetyTools = new SafetyTools({
@@ -3052,7 +3053,11 @@ export class RobloxStudioTools {
   async applyRecipe(recipe: string, params?: Record<string, unknown>, instance_id?: string) {
     if (!recipe) throw new Error('recipe is required for apply_recipe (see list_recipes)');
     const code = buildRecipeLuau(recipe, params ?? {});
-    const result = await this._runGeneratedLuau(code, instance_id);
+    const response = await this._callSingle('/api/execute-luau', { code }, 'edit', instance_id);
+    const result = wrapToolJsonText(normalizeExecuteLuauToolResult(response, {
+      recipe,
+      error: 'apply_recipe returned non-object execute-luau output',
+    })) as { content: ToolContent[] };
     this.safety.recordOperation({ kind: 'bulk_create', summary: `applied recipe ${recipe}` });
     return result;
   }
@@ -3062,7 +3067,9 @@ export class RobloxStudioTools {
   async playtestSampleState(domains?: TelemetryDomain[], target?: string, instance_id?: string) {
     const code = buildPlaytestSampleLuau(domains ?? []);
     const response = await this._callSingle('/api/execute-luau', { code }, target || 'server', instance_id);
-    return { content: [{ type: 'text', text: JSON.stringify(response) }] as ToolContent[] };
+    return wrapToolJsonText(normalizeExecuteLuauToolResult(response, {
+      error: 'playtest_sample_state returned non-object execute-luau output',
+    })) as { content: ToolContent[] };
   }
 
   // Gameplay assertions: run named boolean checks against the DataModel, structured
@@ -3072,7 +3079,12 @@ export class RobloxStudioTools {
       throw new Error('assertions (a non-empty array) is required for run_gameplay_assertions');
     }
     const response = await this._callSingle('/api/execute-luau', { code: buildGameplayAssertionsLuau(assertions) }, target || 'edit', instance_id);
-    return { content: [{ type: 'text', text: JSON.stringify(response) }] as ToolContent[] };
+    return wrapToolJsonText(normalizeExecuteLuauToolResult(response, {
+      results: [],
+      summary: { total: assertions.length, passed: 0, failed: assertions.length },
+      allPassed: false,
+      error: 'run_gameplay_assertions returned non-object execute-luau output',
+    })) as { content: ToolContent[] };
   }
 
   // Discovery + world-model tools live in their own domain classes; the facade
