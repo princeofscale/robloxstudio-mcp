@@ -10,6 +10,7 @@ import { SCRIPTING_TOOL_DEFINITIONS } from '../tools/definitions/scripting.js';
 import { META_TOOL_DEFINITIONS } from '../tools/definitions/meta.js';
 import { TOOL_HANDLERS } from '../http-server.js';
 import { RobloxStudioTools } from '../tools/index.js';
+import { toolDefinitionToMcpTool } from '../tools/tool-shape.js';
 import { BridgeService } from '../bridge-service.js';
 
 type JsonSchema = Record<string, unknown>;
@@ -63,6 +64,42 @@ describe('Tool schema compatibility', () => {
       collectArraySchemasMissingItems(tool.inputSchema, tool.name, missing);
     }
     expect(missing).toEqual([]);
+  });
+
+  test('MCP tool shape includes outputSchema only when the tool publishes one', () => {
+    const noOutput = toolDefinitionToMcpTool({
+      name: 'example_no_output',
+      category: 'read',
+      description: 'Example without output schema.',
+      inputSchema: { type: 'object', properties: {} },
+    });
+    expect(noOutput).toEqual({
+      name: 'example_no_output',
+      description: 'Example without output schema.',
+      inputSchema: { type: 'object', properties: {} },
+    });
+
+    const withOutput = toolDefinitionToMcpTool({
+      name: 'example_with_output',
+      category: 'read',
+      description: 'Example with output schema.',
+      inputSchema: { type: 'object', properties: {} },
+      outputSchema: {
+        type: 'object',
+        properties: { ok: { type: 'boolean' } },
+        required: ['ok'],
+      },
+    });
+    expect(withOutput).toEqual({
+      name: 'example_with_output',
+      description: 'Example with output schema.',
+      inputSchema: { type: 'object', properties: {} },
+      outputSchema: {
+        type: 'object',
+        properties: { ok: { type: 'boolean' } },
+        required: ['ok'],
+      },
+    });
   });
 
   // Tools that don't dispatch to Studio (asset uploads, local file ops, build

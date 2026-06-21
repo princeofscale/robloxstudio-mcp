@@ -16,6 +16,7 @@ import { RobloxStudioTools } from './tools/index.js';
 import { BridgeService, RoutingFailure, toPublic } from './bridge-service.js';
 import type { RegisterInstanceResult } from './bridge-service.js';
 import type { ToolDefinition } from './tools/definitions.js';
+import { toolDefinitionToMcpTool } from './tools/tool-shape.js';
 import { toolErrorResult } from './errors.js';
 import { attachStructuredContent } from './tools/structured-output.js';
 import { SERVER_INSTRUCTIONS } from './server-instructions.js';
@@ -634,11 +635,7 @@ export function createHttpServer(tools: RobloxStudioTools, bridge: BridgeService
         });
 
         server.setRequestHandler(ListToolsRequestSchema, async () => ({
-          tools: filteredTools.map(t => ({
-            name: t.name,
-            description: t.description,
-            inputSchema: t.inputSchema,
-          })),
+          tools: filteredTools.map(toolDefinitionToMcpTool),
         }));
 
         server.setRequestHandler(CallToolRequestSchema, async (request) => {

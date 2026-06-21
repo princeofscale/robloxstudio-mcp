@@ -16,6 +16,7 @@ import { BridgeService, RoutingFailure } from './bridge-service.js';
 import { ProxyBridgeService } from './proxy-bridge-service.js';
 import type { ToolDefinition } from './tools/definitions.js';
 import { buildCatalog, expandToolsets, CORE_TOOLS } from './tools/tool-catalog.js';
+import { toolDefinitionToMcpTool } from './tools/tool-shape.js';
 import { toolErrorResult } from './errors.js';
 import { attachStructuredContent } from './tools/structured-output.js';
 import { SERVER_INSTRUCTIONS } from './server-instructions.js';
@@ -73,11 +74,7 @@ export class RobloxStudioMCPServer {
         ? this.config.tools.filter(t => this.activeToolNames.has(t.name))
         : this.config.tools;
       return {
-        tools: visible.map(t => ({
-          name: t.name,
-          description: t.description,
-          inputSchema: t.inputSchema,
-        })),
+        tools: visible.map(toolDefinitionToMcpTool),
       };
     });
 

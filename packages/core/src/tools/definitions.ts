@@ -9,12 +9,14 @@ import { GENERATED_TOOL_DEFINITIONS } from './definitions/generated.js';
 import { META_TOOL_DEFINITIONS } from './definitions/meta.js';
 
 export type ToolCategory = 'read' | 'write';
+export type JsonSchema = Record<string, unknown>;
 
 export interface ToolDefinition {
   name: string;
   description: string;
   category: ToolCategory;
   inputSchema: object;
+  outputSchema?: JsonSchema;
 }
 
 export const TOOL_DEFINITIONS: ToolDefinition[] = [
