@@ -7,6 +7,7 @@ import { ASSET_TOOL_DEFINITIONS } from './definitions/assets.js';
 import { SCENE_TOOL_DEFINITIONS } from './definitions/scene.js';
 import { GENERATED_TOOL_DEFINITIONS } from './definitions/generated.js';
 import { META_TOOL_DEFINITIONS } from './definitions/meta.js';
+import { withOutputSchemas } from './output-schemas.js';
 
 export type ToolCategory = 'read' | 'write';
 export type JsonSchema = Record<string, unknown>;
@@ -19,7 +20,7 @@ export interface ToolDefinition {
   outputSchema?: JsonSchema;
 }
 
-export const TOOL_DEFINITIONS: ToolDefinition[] = [
+const RAW_TOOL_DEFINITIONS: ToolDefinition[] = [
   ...BROWSING_TOOL_DEFINITIONS,
   ...MUTATION_TOOL_DEFINITIONS,
   ...SCRIPTING_TOOL_DEFINITIONS,
@@ -30,6 +31,8 @@ export const TOOL_DEFINITIONS: ToolDefinition[] = [
   ...GENERATED_TOOL_DEFINITIONS,
   ...META_TOOL_DEFINITIONS,
 ];
+
+export const TOOL_DEFINITIONS: ToolDefinition[] = withOutputSchemas(RAW_TOOL_DEFINITIONS);
 
 export const getReadOnlyTools = () => TOOL_DEFINITIONS.filter(t => t.category === 'read');
 export const getAllTools = () => [...TOOL_DEFINITIONS];

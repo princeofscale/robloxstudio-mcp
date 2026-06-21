@@ -9,6 +9,11 @@ export {
   getAllTools,
   getReadOnlyTools,
 } from './tools/definitions.js';
+export {
+  CONTRACTED_OUTPUT_TOOL_NAMES,
+  OUTPUT_SCHEMAS,
+  getOutputSchema,
+} from './tools/output-schemas.js';
 export type { ToolDefinition, ToolCategory } from './tools/definitions.js';
 export { OpenCloudClient } from './opencloud-client.js';
 export { getPluginsFolder, isWSL, handleVariantConflict } from './install-plugin-helpers.js';

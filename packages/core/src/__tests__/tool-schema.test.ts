@@ -1,4 +1,5 @@
 import { TOOL_DEFINITIONS } from '../tools/definitions.js';
+import { CONTRACTED_OUTPUT_TOOL_NAMES, OUTPUT_SCHEMAS, withOutputSchemas } from '../tools/output-schemas.js';
 import { ASSET_TOOL_DEFINITIONS } from '../tools/definitions/assets.js';
 import { BROWSING_TOOL_DEFINITIONS } from '../tools/definitions/browsing.js';
 import { BUILD_TOOL_DEFINITIONS } from '../tools/definitions/builds.js';
@@ -43,7 +44,7 @@ function collectArraySchemasMissingItems(schema: unknown, path: string, out: str
 
 describe('Tool schema compatibility', () => {
   test('domain definition modules compose TOOL_DEFINITIONS in canonical order', () => {
-    const grouped = [
+    const grouped = withOutputSchemas([
       ...BROWSING_TOOL_DEFINITIONS,
       ...MUTATION_TOOL_DEFINITIONS,
       ...SCRIPTING_TOOL_DEFINITIONS,
@@ -53,7 +54,7 @@ describe('Tool schema compatibility', () => {
       ...SCENE_TOOL_DEFINITIONS,
       ...GENERATED_TOOL_DEFINITIONS,
       ...META_TOOL_DEFINITIONS,
-    ];
+    ]);
     expect(grouped.map((tool) => tool.name)).toEqual(TOOL_DEFINITIONS.map((tool) => tool.name));
     expect(grouped).toEqual(TOOL_DEFINITIONS);
   });
@@ -100,6 +101,33 @@ describe('Tool schema compatibility', () => {
         required: ['ok'],
       },
     });
+  });
+
+  test('first-wave contracted tools advertise outputSchema from the central registry', () => {
+    const byName = new Map(TOOL_DEFINITIONS.map((tool) => [tool.name, tool]));
+
+    for (const toolName of CONTRACTED_OUTPUT_TOOL_NAMES) {
+      const tool = byName.get(toolName);
+      expect(tool).toBeTruthy();
+      expect(tool!.outputSchema).toEqual(OUTPUT_SCHEMAS[toolName]);
+    }
+  });
+
+  test('no tool advertises outputSchema outside the central registry', () => {
+    const allowed = new Set(CONTRACTED_OUTPUT_TOOL_NAMES);
+    const offenders = TOOL_DEFINITIONS
+      .filter((tool) => tool.outputSchema && !allowed.has(tool.name))
+      .map((tool) => tool.name);
+
+    expect(offenders).toEqual([]);
+  });
+
+  test('every array output schema declares items', () => {
+    const missing: string[] = [];
+    for (const [toolName, schema] of Object.entries(OUTPUT_SCHEMAS)) {
+      collectArraySchemasMissingItems(schema, `${toolName}.outputSchema`, missing);
+    }
+    expect(missing).toEqual([]);
   });
 
   // Tools that don't dispatch to Studio (asset uploads, local file ops, build
