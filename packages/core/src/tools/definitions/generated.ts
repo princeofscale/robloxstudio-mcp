@@ -513,6 +513,81 @@ export const GENERATED_TOOL_DEFINITIONS: ToolDefinition[] = [
     },
   },
 
+  // === Native AI 3D model generation ===
+  {
+    name: 'generate_model_native',
+    category: 'write',
+    description: 'Generate a 3D model from a text prompt using Roblox\'s native GenerationService (on-platform, free, moderation-aware) and insert it into the place. Returns the model path, generation UUID, named parts, and bounding box. Takes ~30s (within the heavy-Luau timeout). Use this instead of an external text-to-3D API or composing parts by hand. Default schema "Body1" produces a single mesh; "Car5" a five-part car; or pass `parts` for a custom multi-part model.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        prompt: { type: 'string', description: 'Text description of the object to generate, e.g. "a small wooden stool".' },
+        parentPath: { type: 'string', description: 'Path to parent the model under (default "Workspace").' },
+        name: { type: 'string', description: 'Name for the inserted model (default from the generator).' },
+        predefinedSchema: { type: 'string', enum: ['Body1', 'Car5'], description: 'Predefined schema: "Body1" (single mesh, default) or "Car5" (five-part car chassis). Ignored if `parts` is given.' },
+        parts: { type: 'array', items: { type: 'string' }, description: 'Custom schema: names of the parts to produce (e.g. ["body","wheel_fl","wheel_fr"]). Overrides predefinedSchema.' },
+        size: { type: 'object', properties: { x: { type: 'number' }, y: { type: 'number' }, z: { type: 'number' } }, description: 'Optional target size (studs) as {x,y,z}.' },
+        maxTriangles: { type: 'number', description: 'Optional max triangle budget for the generated mesh.' },
+        generateTextures: { type: 'boolean', description: 'Whether to texture the result (default true).' },
+        instance_id: INSTANCE_ID_PROP,
+      },
+      required: ['prompt'],
+    },
+  },
+
+  // === UI design quality (Track D) ===
+  {
+    name: 'ui_component_catalog',
+    category: 'read',
+    description: 'Return the UI design system the agent should build against: theme tokens (spacing scale, radius, typography, colors, min text size), canonical component anatomies (button, card, modal, hud_meter, list_row, nav_rail) and concrete design guidance. Read this FIRST before building UI so layouts are consistent instead of ad-hoc, then verify with design_lint and standardize with apply_theme.',
+    inputSchema: { type: 'object', properties: {} },
+  },
+  {
+    name: 'apply_theme',
+    category: 'write',
+    description: 'Standardize an existing UI onto a theme — recolors Frames/buttons/text to the theme tokens, raises sub-readable text to the minimum size, removes hard borders, and adds rounded corners where missing. Use after building (or on legacy UI) to remove "AI slop" inconsistency; pair with ui_component_catalog (the canon) and design_lint (the metric).',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        rootPath: { type: 'string', description: 'Path to the ScreenGui/GuiObject to theme (e.g. "StarterGui.MainMenu").' },
+        theme: { type: 'string', enum: ['dark', 'light'], description: 'Theme to apply (default "dark").' },
+        minTextSize: { type: 'number', description: 'Raise any text below this size (default 14).' },
+        roundCorners: { type: 'boolean', description: 'Add a UICorner where missing (default true).' },
+        instance_id: INSTANCE_ID_PROP,
+      },
+      required: ['rootPath'],
+    },
+  },
+  {
+    name: 'design_lint',
+    category: 'read',
+    description: 'Deterministically lint a UI for common quality problems and return scored, structured findings — a cheap, reproducible design-quality metric. Catches: tiny_text (TextSize < 9), offscreen elements, overlapping interactive elements, non_responsive_size (large pure-offset sizing that won\'t scale), no_layout_container (4+ children with no UIListLayout/UIGridLayout), and stretched_image_no_slice. Use it to drive "make this UI better" and to verify before/after. Geometric checks use edit-mode layout; topbar/safe-area need a playtest.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        rootPath: { type: 'string', description: 'Path to a specific ScreenGui/GuiObject (e.g. "StarterGui.MainMenu"). Omit to scan every ScreenGui in StarterGui.' },
+        minTextSize: { type: 'number', description: 'Minimum readable text size (default 9).' },
+        instance_id: INSTANCE_ID_PROP,
+      },
+    },
+  },
+
+  {
+    name: 'design_review',
+    category: 'read',
+    description: 'Vision-based UI critique: screenshots a ScreenGui (temporarily staged so it renders) and asks a vision model to rate visual hierarchy, spacing, color/contrast, alignment and "AI slop" risk, then return specific Roblox-phrased fixes. Run AFTER design_lint passes (lint is the cheap deterministic gate; this is the qualitative amplifier). Requires POLLINATIONS_API_KEY. Pass a ScreenGui path.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        rootPath: { type: 'string', description: 'Path to the ScreenGui to review (e.g. "StarterGui.MainMenu").' },
+        instruction: { type: 'string', description: 'Optional extra focus for the reviewer (e.g. "mobile layout", "is the CTA prominent?").' },
+        model: { type: 'string', description: 'Vision model (default "openai-fast"; any vision-capable model from enter.pollinations.ai).' },
+        instance_id: INSTANCE_ID_PROP,
+      },
+      required: ['rootPath'],
+    },
+  },
+
   // === Diagnostics ===
   {
     name: 'diagnose_scripts',

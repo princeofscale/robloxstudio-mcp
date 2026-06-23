@@ -13,7 +13,7 @@ jobs:
   publish:
     runs-on: ubuntu-latest
     permissions:
-      contents: read
+      contents: write # create the GitHub release + upload plugin assets
       id-token: write # enables npm provenance
     steps:
       - uses: actions/checkout@v7
@@ -49,3 +49,15 @@ jobs:
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
           NPM_CONFIG_PROVENANCE: 'true'
+
+      # publish.mjs runs build:all → build:plugins, so both .rbxmx exist here.
+      # The bundled plugin inside the npm package is the primary install path;
+      # these release assets back the `--dev`/fallback download in install-plugin.ts.
+      - name: Create GitHub release + attach plugin assets
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          ASSETS="studio-plugin/MCPPlugin.rbxmx studio-plugin/MCPInspectorPlugin.rbxmx"
+          gh release create "$GITHUB_REF_NAME" $ASSETS \
+            --title "$GITHUB_REF_NAME" --generate-notes \
+          || gh release upload "$GITHUB_REF_NAME" $ASSETS --clobber

@@ -5,6 +5,7 @@ import {
   buildCreateAnimationLuau,
   buildPlayAnimationLuau,
   buildApplyTextureLuau,
+  buildGenerateModelLuau,
 } from '../builders/media-builders.js';
 
 describe('assetUri', () => {
@@ -69,5 +70,26 @@ describe('buildApplyTextureLuau', () => {
   it('honors an explicit property override', () => {
     const code = buildApplyTextureLuau({ targetPath: 'Workspace.Part.Decal', assetId: 7, property: 'Texture' });
     expect(code).toContain('target.Texture = "rbxassetid://7"');
+  });
+});
+
+describe('buildGenerateModelLuau', () => {
+  it('emits TextPrompt and the default Body1 predefined schema', () => {
+    const code = buildGenerateModelLuau({ prompt: 'a small wooden stool' });
+    expect(code).toContain('GenerationService:GenerateModelAsync(inputs, schema)');
+    expect(code).toContain('TextPrompt = "a small wooden stool"');
+    expect(code).toContain('PredefinedSchema = "Body1"');
+    expect(code).toContain('resolvePath("Workspace")');
+  });
+  it('uses a custom SchemaDefinition when parts are given (overriding predefined)', () => {
+    const code = buildGenerateModelLuau({ prompt: 'a cart', parts: ['body', 'wheel_fl'], predefinedSchema: 'Car5' });
+    expect(code).toContain('SchemaDefinition = { Groups = { "body", "wheel_fl" } }');
+    expect(code).not.toContain('PredefinedSchema');
+  });
+  it('threads optional size, triangle budget and texture flag into inputs', () => {
+    const code = buildGenerateModelLuau({ prompt: 'x', size: { x: 4, y: 2, z: 4 }, maxTriangles: 5000, generateTextures: false });
+    expect(code).toContain('Size = Vector3.new(4, 2, 4)');
+    expect(code).toContain('MaxTriangles = 5000');
+    expect(code).toContain('GenerateTextures = false');
   });
 });

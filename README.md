@@ -155,8 +155,28 @@ Everything core works **key-free**. Two optional integrations add more:
 
 | Key | Enables |
 |---|---|
-| `POLLINATIONS_API_KEY` | `image_generate`, `image_generate_and_upload` — text-to-image via Pollinations (free models like `flux`/`zimage` work immediately). |
-| `ROBLOX_OPEN_CLOUD_API_KEY` | `search_assets`, `get_asset_details`, `upload_asset` — Creator Store access and asset publishing. |
+| `POLLINATIONS_API_KEY` | `image_generate`, `image_generate_and_upload` (text-to-image) and `design_review` (vision UI critique) via Pollinations. Get a server-side `sk_` key from [enter.pollinations.ai](https://enter.pollinations.ai). |
+| `ROBLOX_OPEN_CLOUD_API_KEY` | `search_assets`, `get_asset_details`, `upload_asset`, and external-asset import — Creator Store access and asset publishing. |
+
+#### Getting a Roblox Open Cloud API key
+
+`upload_asset` (and external-asset import) need an Open Cloud key with write scopes:
+
+1. Go to the [Creator Dashboard → Credentials → API Keys](https://create.roblox.com/dashboard/credentials?activeTab=ApiKeysTab).
+2. **Create API Key**. Add these API systems / scopes:
+   - **Assets** → `asset:read`, `asset:write`
+   - **Asset Permissions** → `asset-permissions:write` (only if you also manage asset sharing)
+3. Under **Security**, add your IP (or `0.0.0.0/0` for any IP — less safe), then **Save & Generate**.
+4. Copy the key **once** and expose it as an env var — never commit it:
+
+   ```bash
+   export ROBLOX_OPEN_CLOUD_API_KEY="<your-key>"
+   export POLLINATIONS_API_KEY="<your-sk_-key>"   # optional, for image/design tools
+   ```
+
+> **Keep keys out of the repo and chat.** They grant write access to your account's
+> assets. Treat a key that has been pasted anywhere shared as compromised and
+> **rotate it** (delete + regenerate on the dashboard).
 
 ---
 

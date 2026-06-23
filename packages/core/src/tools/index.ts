@@ -30,11 +30,14 @@ import {
   buildCreateAnimationLuau,
   buildPlayAnimationLuau,
   buildApplyTextureLuau,
+  buildGenerateModelLuau,
   CreateSoundOptions,
   CreateAnimationOptions,
   PlayAnimationOptions,
   ApplyTextureOptions,
+  GenerateModelOptions,
 } from '../builders/media-builders.js';
+import { buildDesignLintLuau, DesignLintOptions, buildApplyThemeLuau, ApplyThemeOptions, getDesignCatalog, buildReviewReparentLuau, buildReviewRestoreLuau, designReviewPrompt } from '../builders/design-builders.js';
 import { PollinationsClient, DEFAULT_IMAGE_MODEL, ImageGenOptions } from '../image-client.js';
 import { runBuildExecutor } from './build-executor.js';
 import { GeneratedBuilderTools } from './generated-builder-tools.js';
@@ -44,6 +47,7 @@ import { RobloxCookieClient } from '../roblox-cookie-client.js';
 import * as fs from 'fs';
 import * as os from 'os';
 import * as path from 'path';
+import * as crypto from 'crypto';
 import {
   errorMessage,
   normalizeExecuteLuauToolResult,
@@ -51,6 +55,25 @@ import {
   type ToolContent,
   wrapToolJsonText,
 } from './runtime-support.js';
+
+/** Whether a license obliges crediting the source (CC-BY family / explicit attribution). */
+export function requiresAttribution(license?: string): boolean {
+  return /cc[\s-]?by|attribution/i.test(license ?? '');
+}
+
+/** Provenance for an externally-imported asset (Track A). */
+interface ProvenanceRecord {
+  assetId: string | null;
+  source: string;
+  sourceName?: string;
+  license?: string;
+  attribution?: string;
+  attributionRequired: boolean;
+  assetType: string;
+  sha256: string;
+  bytes: number;
+  importedAt: number;
+}
 
 export class RobloxStudioTools {
   private client: StudioHttpClient;
@@ -71,6 +94,8 @@ export class RobloxStudioTools {
   private assetTools: AssetTools;
   private runtimeTools: RuntimeTools;
   private episodes: EpisodeStore;
+  /** Provenance for externally-imported assets (Track A) — source/license/hash/assetId. */
+  private provenance = new Map<string, ProvenanceRecord>();
 
   constructor(bridge: BridgeService) {
     this.client = new StudioHttpClient(bridge);
@@ -1375,6 +1400,159 @@ export class RobloxStudioTools {
   async animationPlay(options: PlayAnimationOptions, instance_id?: string) {
     if (!options?.rigPath || options?.animationId === undefined) throw new Error('rigPath and animationId are required for animation_play');
     return this._runGeneratedLuau(buildPlayAnimationLuau(options), instance_id);
+  }
+
+  async generateModelNative(options: GenerateModelOptions, instance_id?: string) {
+    if (!options?.prompt || !options.prompt.trim()) throw new Error('prompt is required for generate_model_native');
+    const result = await this._runGeneratedLuau(buildGenerateModelLuau(options), instance_id);
+    this.safety.recordOperation({ kind: 'generate_model', summary: `generated model "${options.prompt}" under ${options.parentPath ?? 'Workspace'}` });
+    return result;
+  }
+
+  async designLint(options: DesignLintOptions = {}, instance_id?: string) {
+    return this._runGeneratedLuau(buildDesignLintLuau(options), instance_id);
+  }
+
+  async uiComponentCatalog() {
+    return { content: [{ type: 'text', text: JSON.stringify(getDesignCatalog()) }] as ToolContent[] };
+  }
+
+  async applyTheme(options: ApplyThemeOptions, instance_id?: string) {
+    if (!options?.rootPath) throw new Error('rootPath is required for apply_theme');
+    const result = await this._runGeneratedLuau(buildApplyThemeLuau(options), instance_id);
+    this.safety.recordOperation({ kind: 'apply_theme', summary: `themed ${options.rootPath} (${options.theme ?? 'dark'})` });
+    return result;
+  }
+
+  async designReview(options: { rootPath: string; instruction?: string; model?: string }, instance_id?: string) {
+    if (!options?.rootPath) throw new Error('rootPath is required for design_review');
+    if (!this.imageClient.hasApiKey()) {
+      return { content: [{ type: 'text', text: JSON.stringify({ error: 'POLLINATIONS_API_KEY is not set. Get a server-side sk_ key from https://enter.pollinations.ai and pass it via env or --pollinations-key.' }) }] as ToolContent[] };
+    }
+    // 1. Stage the ScreenGui under CoreGui so it renders to the editor viewport.
+    const setup = await this._runGeneratedLuau(buildReviewReparentLuau(options.rootPath), instance_id);
+    const setupRet = this._returnValueOf(setup) as { newPath?: string; origParentPath?: string } | null;
+    const newPath = setupRet?.newPath;
+    const origParentPath = setupRet?.origParentPath ?? 'StarterGui';
+    if (!newPath) {
+      return { content: [{ type: 'text', text: JSON.stringify({ error: 'design_review could not stage the UI for capture — pass a ScreenGui path.', setup: setupRet }) }] as ToolContent[] };
+    }
+    try {
+      // 2. Capture the viewport (now showing the UI overlay).
+      const cap = await this.runtimeTools.captureScreenshot(instance_id, 'jpeg', 80);
+      const img = cap.content.find((c) => c.type === 'image') as { data?: string; mimeType?: string } | undefined;
+      if (!img?.data) {
+        const errText = (cap.content.find((c) => c.type === 'text') as { text?: string } | undefined)?.text;
+        return { content: [{ type: 'text', text: JSON.stringify({ error: 'Screenshot capture failed', detail: errText }) }] as ToolContent[] };
+      }
+      // 3. Vision critique.
+      const review = await this.imageClient.reviewImage(img.data, img.mimeType ?? 'image/jpeg', designReviewPrompt(options.instruction), { model: options.model });
+      this.safety.recordOperation({ kind: 'design_review', summary: `reviewed ${options.rootPath}` });
+      return { content: [{ type: 'text', text: JSON.stringify({ rootPath: options.rootPath, review }) }] as ToolContent[] };
+    } finally {
+      // 4. Always restore the original parent.
+      await this._runGeneratedLuau(buildReviewRestoreLuau(newPath, origParentPath), instance_id);
+    }
+  }
+
+  /** Extract the Luau `returnValue` table from a _runGeneratedLuau result. */
+  private _returnValueOf(result: { content?: ToolContent[] }): unknown {
+    const first = result.content?.[0];
+    const text = first && 'text' in first ? (first as { text?: string }).text : undefined;
+    if (!text) return null;
+    try { return (JSON.parse(text) as { returnValue?: unknown }).returnValue ?? null; }
+    catch { return null; }
+  }
+
+  // ─── Track A: provenance-first external asset ingest ─────────────────────
+  // Reuses the proven Open Cloud uploadAsset path (asset:write). Brings an
+  // external file/URL into the place AND records where it came from + its
+  // license, so the asset is auditable and its attribution obligations are
+  // tracked — the thing a free WEPPY-level tool needs before re-uploading
+  // third-party content.
+
+  async importExternalAsset(
+    options: {
+      source: string;
+      assetType?: string;
+      displayName?: string;
+      license?: string;
+      attribution?: string;
+      sourceName?: string;
+      parentPath?: string;
+    },
+    instance_id?: string,
+  ) {
+    if (!options?.source) throw new Error('source (URL or local file path) is required for import_external_asset');
+    const assetType = options.assetType ?? 'Decal';
+
+    // 1. Resolve the source to a local file (download URLs to a temp file).
+    let filePath: string;
+    let bytes: number;
+    let cleanup = false;
+    if (/^https?:\/\//i.test(options.source)) {
+      let res: Response;
+      try { res = await fetch(options.source); }
+      catch (error) { return { content: [{ type: 'text', text: JSON.stringify({ error: `Download failed: ${errorMessage(error)}` }) }] as ToolContent[] }; }
+      if (!res.ok) return { content: [{ type: 'text', text: JSON.stringify({ error: `Download failed: HTTP ${res.status} for ${options.source}` }) }] as ToolContent[] };
+      const buf = Buffer.from(await res.arrayBuffer());
+      const ext = path.extname(new URL(options.source).pathname) || '.bin';
+      filePath = path.join(os.tmpdir(), `mcp-ext-${Date.now()}${ext}`);
+      fs.writeFileSync(filePath, buf);
+      bytes = buf.length;
+      cleanup = true;
+    } else {
+      if (!fs.existsSync(options.source)) throw new Error(`File not found: ${options.source}`);
+      filePath = options.source;
+      bytes = fs.statSync(filePath).size;
+    }
+
+    // 2. Hash for provenance/dedup, then upload via the existing Open Cloud path.
+    const sha256 = crypto.createHash('sha256').update(fs.readFileSync(filePath)).digest('hex');
+    let uploadRaw: { response?: { assetId?: string }; decalId?: string; imageId?: string } = {};
+    try {
+      const up = await this.uploadAsset(filePath, assetType, options.displayName ?? options.sourceName ?? path.basename(filePath));
+      const text = (up.content?.find((c) => 'text' in c) as { text?: string } | undefined)?.text ?? '{}';
+      uploadRaw = JSON.parse(text);
+    } catch (error) {
+      return { content: [{ type: 'text', text: JSON.stringify({ error: errorMessage(error), hint: 'External import needs ROBLOX_OPEN_CLOUD_API_KEY (asset:write) + a creator id (ROBLOX_CREATOR_USER_ID / ROBLOX_CREATOR_GROUP_ID).' }) }] as ToolContent[] };
+    } finally {
+      if (cleanup) { try { fs.unlinkSync(filePath); } catch { /* temp already gone */ } }
+    }
+
+    const assetId = uploadRaw.response?.assetId ?? uploadRaw.decalId ?? uploadRaw.imageId ?? null;
+
+    // 3. Record provenance.
+    const record: ProvenanceRecord = {
+      assetId: assetId ?? null,
+      source: options.source,
+      sourceName: options.sourceName,
+      license: options.license,
+      attribution: options.attribution,
+      attributionRequired: requiresAttribution(options.license),
+      assetType,
+      sha256,
+      bytes,
+      importedAt: Date.now(),
+    };
+    if (assetId) this.provenance.set(String(assetId), record);
+
+    // 4. Optionally drop it into the place.
+    let inserted: unknown;
+    if (assetId && options.parentPath) {
+      try { inserted = await this.insertAsset(Number(assetId), options.parentPath, undefined, instance_id); }
+      catch (error) { inserted = { error: errorMessage(error) }; }
+    }
+
+    return { content: [{ type: 'text', text: JSON.stringify({ assetId, provenance: record, upload: uploadRaw, inserted: inserted ?? null }) }] as ToolContent[] };
+  }
+
+  async getAssetProvenance(assetId?: string) {
+    if (assetId) {
+      const rec = this.provenance.get(String(assetId)) ?? null;
+      return { content: [{ type: 'text', text: JSON.stringify({ assetId, provenance: rec }) }] as ToolContent[] };
+    }
+    return { content: [{ type: 'text', text: JSON.stringify({ records: [...this.provenance.values()] }) }] as ToolContent[] };
   }
 
   async assetApplyTexture(options: ApplyTextureOptions, instance_id?: string) {

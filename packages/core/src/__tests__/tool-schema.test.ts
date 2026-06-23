@@ -172,6 +172,10 @@ describe('Tool schema compatibility', () => {
     'load_toolset',
     // Recipe listing is pure (server-side registry), not a Studio call.
     'list_recipes',
+    // The UI design-system catalog is static data, not a Studio call.
+    'ui_component_catalog',
+    // Provenance lookup reads the in-memory store, not a Studio place.
+    'get_asset_provenance',
     // Episode summary reads the in-memory episode store, not a Studio place.
     'summarize_episode',
   ]);
@@ -341,6 +345,11 @@ describe('Tool schema compatibility', () => {
       animation_create: 'animationCreate',
       animation_play: 'animationPlay',
       asset_apply_texture: 'assetApplyTexture',
+      generate_model_native: 'generateModelNative',
+      import_external_asset: 'importExternalAsset',
+      design_lint: 'designLint',
+      design_review: 'designReview',
+      apply_theme: 'applyTheme',
       diagnose_scripts: 'diagnoseScripts',
       apply_recipe: 'applyRecipe',
     };

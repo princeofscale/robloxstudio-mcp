@@ -99,6 +99,13 @@ const DOMAIN_OVERRIDES: Record<string, ToolDomain> = {
   apply_mutation_plan: 'mutation',
   list_recipes: 'build',
   apply_recipe: 'build',
+  generate_model_native: 'assets',
+  import_external_asset: 'assets',
+  get_asset_provenance: 'assets',
+  design_lint: 'ui',
+  design_review: 'ui',
+  apply_theme: 'ui',
+  ui_component_catalog: 'ui',
 };
 
 // Ordered prefix rules, applied after CORE and OVERRIDES.

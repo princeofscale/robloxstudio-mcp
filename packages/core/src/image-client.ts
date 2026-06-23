@@ -44,6 +44,48 @@ export class PollinationsClient {
     return `${this.baseUrl}/image/${encodeURIComponent(prompt)}?${params.toString()}`;
   }
 
+  /**
+   * Vision review: send an image + prompt to the OpenAI-compatible chat endpoint
+   * and return the model's text. Default model `openai-fast` is vision-capable;
+   * it reasons, so we budget generous max_tokens. Used by design_review.
+   */
+  async reviewImage(
+    imageBase64: string,
+    mimeType: string,
+    prompt: string,
+    options: { model?: string; maxTokens?: number } = {},
+  ): Promise<string> {
+    if (!this.hasApiKey()) {
+      throw new Error('Pollinations API key not configured. Set POLLINATIONS_API_KEY (a server-side sk_ key from https://enter.pollinations.ai).');
+    }
+    const res = await this.fetchImpl(`${this.baseUrl}/v1/chat/completions`, {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${this.apiKey}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        model: options.model ?? 'openai-fast',
+        max_tokens: options.maxTokens ?? 1500,
+        messages: [
+          {
+            role: 'user',
+            content: [
+              { type: 'text', text: prompt },
+              { type: 'image_url', image_url: { url: `data:${mimeType};base64,${imageBase64}` } },
+            ],
+          },
+        ],
+      }),
+    });
+    if (!res.ok) {
+      throw new Error(`Vision review failed (HTTP ${res.status}). Check the model name and your Pollinations key/quota.`);
+    }
+    const json = await res.json() as { choices?: { message?: { content?: string } }[] };
+    const content = json.choices?.[0]?.message?.content ?? '';
+    if (!content.trim()) {
+      throw new Error('Vision model returned empty content (it may have spent the token budget on reasoning — retry).');
+    }
+    return content;
+  }
+
   async generate(prompt: string, options: ImageGenOptions = {}): Promise<{ buffer: Buffer; contentType: string }> {
     if (!this.hasApiKey()) {
       throw new Error('Pollinations API key not configured. Set POLLINATIONS_API_KEY (a server-side sk_ key from https://enter.pollinations.ai).');

@@ -3,6 +3,30 @@
 Roadmap for unresolved work in the MCP itself (this repo / npm packages), not games
 built with it. Completed work moves to [CHANGELOG.md](./CHANGELOG.md).
 
+## Round-6 (post-2.20.0) content-quality frontier
+
+From the round-6 research pass (sourcing assets · generating 3D · UI design quality).
+Ordered do-now: A, B, D, then C and E.
+
+- [x] **Track B — native AI 3D generation.** `generate_model_native` over
+  `GenerationService:GenerateModelAsync` (Body1/Car5 predefined or custom `parts`).
+  Shipped + live-dogfooded. Image-conditioning input deferred (ponytail). External
+  multi-provider text-to-3D and EditableMesh-as-upload-lane deliberately NOT built.
+- [~] **Track A — provenance-first external ingest.** SHIPPED: `import_external_asset`
+  (URL/file → Open Cloud upload → provenance → optional insert) + `get_asset_provenance`.
+  Reuses the proven `uploadAsset` path. REMAINING: multi-provider `asset_source_search`
+  over CC0 libs (Kenney/Quaternius/Poly Haven/ambientCG) with license-aware normalized
+  descriptors; provenance as an MCP resource; live Open Cloud upload dogfood (needs
+  credentials). Confirm-packet (no-key) mode not built — chose full Open Cloud automation.
+- [x] **Track D — design system + lint + review.** SHIPPED: `ui_component_catalog`
+  (tokens + canonical components + guidance), `design_lint` (deterministic scored
+  metric), `apply_theme` (dark/light token standardization), `design_review` (vision
+  screenshot critique via Pollinations). Full set landed. `design_review` end-to-end
+  dogfood pending an MCP server restart (its novel parts — vision endpoint, CoreGui
+  staging — verified live).
+- [ ] **Track E — self-driving loop polish.** Deterministic `propose_next_action` +
+  richer episode diff; cut marketplace search/preflight churn.
+
 ## Open
 
 - [ ] **Track C — calibrated grader.** Three layers: deterministic

@@ -59,3 +59,30 @@ describe('PollinationsClient.generate', () => {
     await expect(client.generate('x')).rejects.toThrow(/POLLINATIONS_API_KEY/);
   });
 });
+
+describe('PollinationsClient.reviewImage', () => {
+  it('posts an OpenAI-style vision message and returns the content', async () => {
+    let captured: any;
+    const fakeFetch = (async (url: string, init: any) => {
+      captured = { url, init };
+      return { ok: true, json: async () => ({ choices: [{ message: { content: 'Scores: hierarchy=7' } }] }) } as unknown as Response;
+    }) as unknown as typeof fetch;
+    const client = new PollinationsClient({ apiKey: 'sk_secret', fetchImpl: fakeFetch });
+    const out = await client.reviewImage('BASE64DATA', 'image/jpeg', 'rate this');
+    expect(out).toContain('hierarchy=7');
+    expect(captured.url).toContain('/v1/chat/completions');
+    const body = JSON.parse(captured.init.body);
+    expect(body.messages[0].content[1].image_url.url).toBe('data:image/jpeg;base64,BASE64DATA');
+    expect(captured.init.headers.Authorization).toBe('Bearer sk_secret');
+  });
+
+  it('throws when the model returns empty content', async () => {
+    const fakeFetch = (async () => ({ ok: true, json: async () => ({ choices: [{ message: { content: '' } }] }) } as unknown as Response)) as unknown as typeof fetch;
+    const client = new PollinationsClient({ apiKey: 'sk_x', fetchImpl: fakeFetch });
+    await expect(client.reviewImage('d', 'image/png', 'p')).rejects.toThrow(/empty content/);
+  });
+
+  it('throws without a key', async () => {
+    await expect(new PollinationsClient({ apiKey: '' }).reviewImage('d', 'image/png', 'p')).rejects.toThrow(/POLLINATIONS_API_KEY/);
+  });
+});

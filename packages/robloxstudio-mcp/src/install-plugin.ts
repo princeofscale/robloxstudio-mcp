@@ -5,7 +5,7 @@ import { get } from 'https';
 import { IncomingMessage } from 'http';
 import { getPluginsFolder, handleVariantConflict } from '@princeofscale/robloxstudio-mcp-core';
 
-const REPO = 'chrrxs/robloxstudio-mcp';
+const REPO = 'princeofscale/robloxstudio-mcp';
 const ASSET_NAME = 'MCPPlugin.rbxmx';
 const OTHER_VARIANT = 'MCPInspectorPlugin.rbxmx';
 const TIMEOUT_MS = 30_000;

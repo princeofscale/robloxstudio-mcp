@@ -609,7 +609,7 @@ function checkForUpdates() {
 				const latestVersion = data.version;
 				if (Utils.compareVersions(State.CURRENT_VERSION, latestVersion) < 0) {
 					if (!hasVersionMismatch) {
-						UI.showBanner("update", `v${latestVersion} available - github.com/chrrxs/robloxstudio-mcp`);
+						UI.showBanner("update", `v${latestVersion} available - github.com/princeofscale/robloxstudio-mcp`);
 					}
 				}
 			}

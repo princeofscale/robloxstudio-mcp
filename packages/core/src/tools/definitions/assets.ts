@@ -234,4 +234,34 @@ export const ASSET_TOOL_DEFINITIONS: ToolDefinition[] = [
       required: ['keyword']
     }
   },
+  {
+    name: 'import_external_asset',
+    category: 'write',
+    description: 'Bring an asset from OUTSIDE the Roblox marketplace into the place: download a URL (or read a local file), upload it to Roblox via Open Cloud, record its provenance (source, license, attribution obligation, sha256, new assetId), and optionally insert it. Use for CC0/CC-BY libraries (Kenney, Quaternius, Poly Haven, ambientCG), your own files, or any direct asset URL. Always pass the license so attribution can be tracked. Requires ROBLOX_OPEN_CLOUD_API_KEY (asset:write) + a creator id (ROBLOX_CREATOR_USER_ID / ROBLOX_CREATOR_GROUP_ID). Only import assets you have the right to upload.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        source: { type: 'string', description: 'A direct https URL to the asset file, or an absolute local file path.' },
+        assetType: { type: 'string', enum: ['Audio', 'Decal', 'Model', 'Animation', 'Video'], description: 'Roblox asset type to upload as (must match the file format). Default "Decal".' },
+        displayName: { type: 'string', description: 'Display name for the uploaded asset (max 50 chars).' },
+        license: { type: 'string', description: 'License of the source asset (e.g. "CC0", "CC-BY-4.0"). Drives the attributionRequired flag.' },
+        attribution: { type: 'string', description: 'Attribution/credit text to record (required for CC-BY-style licenses).' },
+        sourceName: { type: 'string', description: 'Human label for the source (e.g. "Kenney", "Poly Haven").' },
+        parentPath: { type: 'string', description: 'If given, insert the uploaded asset under this path after upload (e.g. "Workspace").' },
+        instance_id: { type: 'string', description: 'Connected Studio place id. Required only when multiple places are open.' },
+      },
+      required: ['source'],
+    },
+  },
+  {
+    name: 'get_asset_provenance',
+    category: 'read',
+    description: 'Return the recorded provenance of externally-imported assets (source URL, license, attribution obligation, sha256, assetId, import time). Pass an assetId for one record, or omit to list all imported this session. Use to produce an attribution manifest or audit where assets came from.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        assetId: { type: 'string', description: 'The Roblox assetId to look up. Omit to list all recorded imports.' },
+      },
+    },
+  },
 ];

@@ -7,6 +7,59 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+- **External asset ingest — Track A first cut (research round-6, Q1).** Bring assets from
+  OUTSIDE the Roblox marketplace into a place, with provenance:
+  - `import_external_asset` — download a URL (or read a local file) → upload to Roblox via
+    the existing Open Cloud `asset:write` path → record provenance (source, license,
+    attribution obligation, sha256, new assetId) → optionally insert. For CC0/CC-BY libraries
+    (Kenney, Quaternius, Poly Haven, ambientCG), own files, or any direct asset URL.
+  - `get_asset_provenance` — return the recorded provenance (one assetId or all this session)
+    to produce an attribution manifest or audit where assets came from.
+  - **ponytail:** reuses the proven `uploadAsset` path rather than a new uploader; the
+    multi-provider `asset_source_search`/`stage_external_asset` split is deferred (the import
+    tool already takes a URL/file, so "found → import" is covered). Live Open Cloud upload
+    dogfood pending credentials (`ROBLOX_OPEN_CLOUD_API_KEY` + creator id); the new
+    download/hash/provenance logic is unit-tested. README documents key setup + scopes.
+- **UI design quality — Track D first cut (research round-6).** Three tools turn "AI slop
+  UI" into a build-canon + measurable gate + one-shot fix:
+  - `ui_component_catalog` — the design system the agent should build against: theme tokens
+    (spacing scale, radius, typography, dark/light colors, min text size), canonical
+    component anatomies (button, card, modal, hud_meter, list_row, nav_rail), and concrete
+    Roblox guidance (UIListLayout, Scale-over-Offset, 9-slice, gamepad Selectable).
+  - `design_lint` — deterministic, scored UI linter. Flags tiny_text (<9px), offscreen
+    elements, overlapping interactive elements, non_responsive_size (large pure-offset),
+    no_layout_container (4+ children with no layout), and stretched_image_no_slice. A cheap
+    reproducible design-quality metric. Live-dogfooded against a deliberately-bad UI (caught
+    all rule classes, scored 54/100). Geometric checks use edit-mode layout; topbar/safe-area
+    insets need a playtest.
+  - `apply_theme` — standardizes an existing UI onto a theme (dark/light): recolors
+    Frames/buttons/text to tokens, raises sub-readable text, removes hard borders, rounds
+    corners. Live-dogfooded (raised 10/8px text to 14, applied primary, added UICorner).
+  - `design_review` — vision UI critique. Temporarily stages a ScreenGui under CoreGui so it
+    renders, screenshots the viewport, and asks a vision model (Pollinations OpenAI-compatible
+    `/v1/chat/completions`, default `openai-fast`) to score visual hierarchy / spacing / color /
+    alignment / "AI slop" and return specific Roblox-phrased fixes. Run after `design_lint`
+    passes (lint = cheap deterministic gate; review = qualitative amplifier). Requires
+    `POLLINATIONS_API_KEY`. Vision endpoint + model + CoreGui-render staging verified live;
+    full tool dogfood pending an MCP server restart to load the new tools.
+- **`generate_model_native` — native AI 3D model generation (research round-6, Track B).**
+  New tool that generates a 3D model from a text prompt via Roblox's on-platform
+  `GenerationService:GenerateModelAsync` and inserts it into the place, returning the
+  model path, generation UUID, named parts, and bounding box. Free, moderation-aware, no
+  external text-to-3D API or asset upload needed. Supports the `Body1` (single mesh) and
+  `Car5` (five-part car) predefined schemas or a custom `parts` list (→ `SchemaDefinition`),
+  plus optional `size`, `maxTriangles`, and `generateTextures`. Runs in ~30s (covered by
+  the heavy-Luau 120s timeout floor). Live-dogfooded end-to-end (model with non-zero bbox
+  and named MeshPart parts). **ponytail:** text-prompt path only — image-conditioning input
+  deferred until asked. (External multi-provider text-to-3D and `EditableMesh` as a durable
+  upload lane were deliberately NOT built — see research round-6: cost/licensing/replication
+  make the native path the right first cut.)
+- Branding: replaced upstream `Chrrxs`/`chrrxs` references with `princeofscale` across the
+  studio-plugin (credits label, update banner, install docs) and pointed the installers'
+  release-download `REPO` at `princeofscale/robloxstudio-mcp`. The release workflow now
+  creates a GitHub release per tag and attaches both `.rbxmx` plugin variants, so the
+  `--dev`/fallback download path resolves real assets.
+
 ## [2.20.0] - 2026-06-23
 
 - **Plugin server-URL robustness (ported from upstream 2.17.1 "path resolution").**

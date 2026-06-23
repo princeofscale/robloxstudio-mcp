@@ -14,7 +14,7 @@ Complete your AI assistant integration with this easy-to-install Studio plugin. 
 
 ### Method 2: Direct Download
 1. **Download the plugin:**
-   - **GitHub Release**: [Download MCPPlugin.rbxmx](https://github.com/chrrxs/robloxstudio-mcp/releases/latest/download/MCPPlugin.rbxmx)
+   - **GitHub Release**: [Download MCPPlugin.rbxmx](https://github.com/princeofscale/robloxstudio-mcp/releases/latest/download/MCPPlugin.rbxmx)
    - **CLI installer**: `npx -y @princeofscale/robloxstudio-mcp@latest --install-plugin`
    - This is the official Roblox plugin format
 
@@ -28,7 +28,7 @@ Complete your AI assistant integration with this easy-to-install Studio plugin. 
 
 ### Method 3: Save as Local Plugin
 1. **Copy the plugin code:**
-   - Open [studio-plugin/src/server/index.server.ts](https://github.com/chrrxs/robloxstudio-mcp/blob/main/studio-plugin/src/server/index.server.ts) on GitHub (or build locally - see project README)
+   - Open [studio-plugin/src/server/index.server.ts](https://github.com/princeofscale/robloxstudio-mcp/blob/main/studio-plugin/src/server/index.server.ts) on GitHub (or build locally - see project README)
    - Copy all the code (Ctrl+A, Ctrl+C)
 
 2. **Create in Studio:**

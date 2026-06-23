@@ -143,6 +143,8 @@ export const TOOL_HANDLERS: Record<string, ToolHandler> = {
   insert_asset: (tools, body) => tools.insertAsset(body.assetId, body.parentPath, body.position, body.instance_id),
   preview_asset: (tools, body) => tools.previewAsset(body.assetId, body.includeProperties, body.maxDepth, body.instance_id),
   upload_asset: (tools, body) => tools.uploadAsset(body.filePath, body.assetType, body.displayName, body.description, body.userId, body.groupId),
+  import_external_asset: (tools, body) => tools.importExternalAsset(body, body.instance_id),
+  get_asset_provenance: (tools, body) => tools.getAssetProvenance(body.assetId),
   clone_object: (tools, body) => tools.cloneObject(body.instancePath, body.targetParentPath, body.instance_id),
   get_descendants: (tools, body) => tools.getDescendants(body.instancePath, body.maxDepth, body.classFilter, body.limit, body.offset, body.fields, body.instance_id),
   compare_instances: (tools, body) => tools.compareInstances(body.instancePathA, body.instancePathB, body.instance_id),
@@ -215,6 +217,15 @@ export const TOOL_HANDLERS: Record<string, ToolHandler> = {
 
   // Diagnostics.
   diagnose_scripts: (tools, body) => tools.diagnoseScripts(body.maxEntries, body.instance_id),
+
+  // Native AI 3D model generation (GenerationService) — runs in the place.
+  generate_model_native: (tools, body) => tools.generateModelNative(body, body.instance_id),
+
+  // UI design quality (Track D).
+  ui_component_catalog: (tools) => tools.uiComponentCatalog(),
+  apply_theme: (tools, body) => tools.applyTheme(body, body.instance_id),
+  design_lint: (tools, body) => tools.designLint(body, body.instance_id),
+  design_review: (tools, body) => tools.designReview(body, body.instance_id),
 
   // AI image generation (Pollinations) — server-side, no Studio routing.
   image_generate: (tools, body) => tools.imageGenerate(body.prompt, body),

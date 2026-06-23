@@ -1,6 +1,6 @@
 {
   "name": "@princeofscale/robloxstudio-mcp-monorepo",
-  "version": "2.19.3",
+  "version": "2.20.1",
   "private": true,
   "type": "module",
   "workspaces": [

@@ -138,3 +138,70 @@ target[prop] = uri
 return { path = target:GetFullName(), property = prop, success = true }`;
   return wrap(body);
 }
+
+// === Native AI 3D model generation (GenerationService:GenerateModelAsync) ===
+// On-platform, free, moderation-aware. Verified live: returns (Model, {UUID=...})
+// after ~28s; PredefinedSchema "Body1" yields a Model > "body" > MeshPart.
+// ponytail: text-prompt path only; Image-conditioning input deferred until asked.
+
+export interface GenerateModelOptions {
+  prompt: string;
+  parentPath?: string;
+  name?: string;
+  /** Predefined Roblox schema: "Body1" (single mesh) or "Car5" (five-part car). */
+  predefinedSchema?: 'Body1' | 'Car5';
+  /** Custom schema: names of the parts to produce (maps to SchemaDefinition.Groups). */
+  parts?: string[];
+  size?: { x: number; y: number; z: number };
+  maxTriangles?: number;
+  generateTextures?: boolean;
+}
+
+export function buildGenerateModelLuau(options: GenerateModelOptions): string {
+  const parentPath = options.parentPath ?? 'Workspace';
+
+  const inputs = [`TextPrompt = ${luaString(options.prompt)}`];
+  if (options.size) {
+    inputs.push(`Size = Vector3.new(${luaNumber(options.size.x)}, ${luaNumber(options.size.y)}, ${luaNumber(options.size.z)})`);
+  }
+  if (options.maxTriangles !== undefined) inputs.push(`MaxTriangles = ${luaNumber(options.maxTriangles)}`);
+  if (options.generateTextures !== undefined) inputs.push(`GenerateTextures = ${luaBool(options.generateTextures)}`);
+
+  // schema: exactly one of PredefinedSchema or SchemaDefinition.Groups (default Body1).
+  let schemaLua: string;
+  if (options.parts && options.parts.length > 0) {
+    const groups = options.parts.map((p) => luaString(p)).join(', ');
+    schemaLua = `{ SchemaDefinition = { Groups = { ${groups} } } }`;
+  } else {
+    schemaLua = `{ PredefinedSchema = ${luaString(options.predefinedSchema ?? 'Body1')} }`;
+  }
+
+  const nameLua = options.name !== undefined ? luaString(options.name) : 'nil';
+
+  const body = `local GenerationService = game:GetService("GenerationService")
+local parent = resolvePath(${luaString(parentPath)})
+if parent == nil then error("Parent not found: " .. ${luaString(parentPath)}) end
+local inputs = { ${inputs.join(', ')} }
+local schema = ${schemaLua}
+local model, meta = GenerationService:GenerateModelAsync(inputs, schema)
+if model == nil then error("GenerateModelAsync returned no model") end
+local desiredName = ${nameLua}
+if desiredName ~= nil then model.Name = desiredName end
+model.Parent = parent
+local parts = {}
+for _, d in ipairs(model:GetDescendants()) do
+\ttable.insert(parts, { name = d.Name, className = d.ClassName })
+end
+local cf, size = model:GetBoundingBox()
+return {
+\tsuccess = true,
+\tuuid = (typeof(meta) == "table" and meta.UUID) or nil,
+\tmodelPath = model:GetFullName(),
+\tmodelName = model.Name,
+\tparentPath = parent:GetFullName(),
+\tparts = parts,
+\tpartCount = #parts,
+\tboundingBox = { x = size.X, y = size.Y, z = size.Z },
+}`;
+  return wrap(body);
+}
