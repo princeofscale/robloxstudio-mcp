@@ -1,5 +1,6 @@
 import { TweenService } from "@rbxts/services";
 import State from "./State";
+import ServerUrlSettings from "./ServerUrlSettings";
 import { Connection } from "../types";
 
 interface UIElements {
@@ -473,7 +474,7 @@ function init(pluginRef: Plugin) {
 	urlInput.Size = new UDim2(1, 0, 0, 26);
 	urlInput.BackgroundColor3 = C.bg;
 	urlInput.BorderSizePixel = 0;
-	urlInput.Text = "http://localhost:58741";
+	urlInput.Text = State.getActiveConnection().serverUrl;
 	urlInput.TextColor3 = C.label;
 	urlInput.TextSize = 11;
 	urlInput.Font = Enum.Font.GothamMedium;
@@ -495,9 +496,15 @@ function init(pluginRef: Plugin) {
 	urlInput.FocusLost.Connect(() => {
 		const conn = State.getActiveConnection();
 		if (!conn || conn.isActive) return;
-		conn.serverUrl = urlInput.Text;
-		const [portStr] = conn.serverUrl.match(":(%d+)$");
-		if (portStr) conn.port = tonumber(portStr) ?? conn.port;
+		const normalizedUrl = ServerUrlSettings.normalizeServerUrl(urlInput.Text);
+		if (normalizedUrl === "") {
+			urlInput.Text = conn.serverUrl;
+			return;
+		}
+		conn.serverUrl = normalizedUrl;
+		urlInput.Text = normalizedUrl;
+		const port = ServerUrlSettings.extractPort(conn.serverUrl);
+		if (port !== undefined) conn.port = port;
 		updateTabLabel(State.getActiveTabIndex());
 	});
 
