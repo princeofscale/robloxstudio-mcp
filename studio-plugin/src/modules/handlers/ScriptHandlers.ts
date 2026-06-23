@@ -132,6 +132,9 @@ function setScriptSource(requestData: Record<string, unknown>) {
 		const oldSourceLength = readScriptSource(instance).size();
 
 		ScriptEditorService.UpdateSourceAsync(instance, () => sourceToSet);
+		if (readScriptSource(instance) !== sourceToSet) {
+			error("UpdateSourceAsync completed without updating the script source");
+		}
 
 		return {
 			success: true, instancePath,

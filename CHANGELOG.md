@@ -9,6 +9,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [2.20.0] - 2026-06-23
 
+- **Plugin server-URL robustness (ported from upstream 2.17.1 "path resolution").**
+  `ServerUrlSettings` now normalizes the server URL (adds a missing `http://` scheme,
+  trims whitespace/trailing slashes) and remembers the last *successfully connected* URL
+  globally + per-instance (with legacy-key migration), so a fresh/anonymous place
+  reconnects to the right address. URL input is normalized on blur and on connect; the
+  remembered URL is applied at plugin boot before the UI initializes. Also: `set_script_source`
+  now verifies `UpdateSourceAsync` actually changed the source and errors loudly if it
+  silently no-ops. (Did not port the upstream char-navigation removal or unused Luau
+  path-quoting helpers — no consumer in this fork.)
 - **Track D — runtime episode loop, full.** Playtest episodes are now a first-class,
   addressable, comparable unit: `run_playtest_episode` persists each result in a capped
   in-memory store and returns an `episodeUri`; they're readable as resources

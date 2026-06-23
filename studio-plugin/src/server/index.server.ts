@@ -26,6 +26,19 @@ StopPlayMonitor.init(plugin);
 BreakpointHandlers.init(plugin);
 ServerUrlSettings.init(plugin);
 
+function applyRememberedServerUrl(): void {
+	const rememberedServerUrl = ServerUrlSettings.readServerUrl();
+	if (rememberedServerUrl === undefined) return;
+
+	const conn = State.getActiveConnection();
+	conn.serverUrl = rememberedServerUrl;
+	const port = ServerUrlSettings.extractPort(rememberedServerUrl);
+	if (port !== undefined) conn.port = port;
+	ClientBroker.setServerUrl(rememberedServerUrl);
+}
+
+applyRememberedServerUrl();
+
 UI.init(plugin);
 const elements = UI.getElements();
 
@@ -93,11 +106,11 @@ task.delay(2, () => {
 			if (conn && !conn.isActive) {
 				if (role === "server") {
 					const inheritedServerUrl = ServerUrlSettings.readServerUrl() ?? ClientBroker.DEFAULT_MCP_URL;
-					conn.serverUrl = inheritedServerUrl;
-					elements.urlInput.Text = inheritedServerUrl;
-					const [portStr] = conn.serverUrl.match(":(%d+)$");
-					if (portStr) conn.port = tonumber(portStr) ?? conn.port;
-					ClientBroker.setServerUrl(inheritedServerUrl);
+					conn.serverUrl = ServerUrlSettings.normalizeServerUrl(inheritedServerUrl);
+					elements.urlInput.Text = conn.serverUrl;
+					const port = ServerUrlSettings.extractPort(conn.serverUrl);
+					if (port !== undefined) conn.port = port;
+					ClientBroker.setServerUrl(conn.serverUrl);
 				}
 				// Defensive default: in invisible play-DM UIs, the input field
 				// may not be populated by the time we activate.
