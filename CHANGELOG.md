@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.20.1] - 2026-06-23
+
 - **External asset ingest — Track A first cut (research round-6, Q1).** Bring assets from
   OUTSIDE the Roblox marketplace into a place, with provenance:
   - `import_external_asset` — download a URL (or read a local file) → upload to Roblox via
