@@ -178,6 +178,8 @@ describe('Tool schema compatibility', () => {
     'get_asset_provenance',
     // Episode summary reads the in-memory episode store, not a Studio place.
     'summarize_episode',
+    // Deterministic next-action reasons over the in-memory episode store.
+    'propose_next_action',
   ]);
 
   function toolHandlerBody(toolName: string): string {
@@ -282,6 +284,7 @@ describe('Tool schema compatibility', () => {
       run_gameplay_assertions: 'runGameplayAssertions',
       run_playtest_episode: 'runPlaytestEpisode',
       summarize_episode: 'summarizeEpisode',
+      propose_next_action: 'proposeNextAction',
       get_reproduction_bundle: 'getReproductionBundle',
       breakpoints: 'breakpoints',
       export_build: 'exportBuild',

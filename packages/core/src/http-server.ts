@@ -47,6 +47,7 @@ export const TOOL_HANDLERS: Record<string, ToolHandler> = {
   run_gameplay_assertions: (tools, body) => tools.runGameplayAssertions(body.assertions, body.target, body.instance_id),
   run_playtest_episode: (tools, body) => tools.runPlaytestEpisode(body.mode, body.assertions, body.sampleDomains, body.durationS, body.instance_id),
   summarize_episode: (tools, body) => tools.summarizeEpisode(body.episodeId, body.comparedToEpisodeId),
+  propose_next_action: (tools, body) => tools.proposeNextAction(body.episodeId),
   get_reproduction_bundle: (tools, body) => tools.getReproductionBundle(body.instance_id),
   asset_preflight_insert: (tools, body) => tools.assetPreflightInsert(body.assetId, body.instance_id),
   execute_luau_async: (tools, body) => tools.executeLuauAsync(body.code, body.target, body.instance_id, { dryRun: body.dryRun, confirm: body.confirm }),

@@ -7,6 +7,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+- **Track E — self-driving loop polish (round-6).** `propose_next_action` — a
+  deterministic next-step picker over the stored playtest episodes, so the
+  edit→playtest→observe→fix loop doesn't burn an LLM turn on the obvious move. With
+  no `episodeId` it reads the latest episode (and finds the most recent earlier
+  FAILING run, so a clean run after a failure is recognized as a fix to prove).
+  Returns `{ action, done, tool, args, rationale, focus }`: names the exact MCP call
+  when mechanical (run an episode, or `summarize_episode` with `comparedToEpisodeId`),
+  else `tool=null` + the implicated scripts/assertions in `focus`. `summarize_episode`'s
+  comparison block is now a **richer diff** (`diffEpisodes`): error-count delta,
+  newly-introduced vs resolved error lines, and per-assertion pass/fail transitions —
+  not just the verdict flip. Pure TS over the in-memory store (no plugin, no Studio),
+  unit-tested.
+
 - **Dependency bumps (dependabot #16–#20) + toolchain fixes.** Accepted all five open
   dependabot PRs and made the tree green again under the majors:
   - `typescript` 5.9 → 6.0, `@typescript-eslint/parser` + `eslint-plugin` 7 → 8,

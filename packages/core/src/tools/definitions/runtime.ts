@@ -764,6 +764,20 @@ export const RUNTIME_TOOL_DEFINITIONS: ToolDefinition[] = [
     }
   },
   {
+    name: 'propose_next_action',
+    category: 'read',
+    description: 'Deterministically pick the single next step in the edit→playtest→observe→fix loop from the stored playtest episodes — no LLM turn spent on the obvious move. With no episodeId it reads the most recent episode (and locates the most recent earlier FAILING run, so a clean run after a failure is recognized as a fix to prove). Returns { action, done, tool, args, rationale, focus }: when the next step is mechanical it names the exact MCP call + args (e.g. run_playtest_episode, or summarize_episode with comparedToEpisodeId); when it needs a human/LLM edit it sets tool=null and names the implicated scripts/assertions in "focus". action is one of run_episode | fix_startup | fix_assertion | fix_script | prove_fix | done.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        episodeId: {
+          type: 'string',
+          description: 'Optional episodeId to reason about. Omit to use the most recent stored episode.'
+        }
+      }
+    }
+  },
+  {
     name: 'get_reproduction_bundle',
     category: 'read',
     description: 'Capture a point-in-time reproduction/audit bundle in one call: connected Studio places, a world overview snapshot, the recent mutating-operation history, and the stored playtest episodes. Use it to answer "what state is this place in and how did it get here" — for handing off, auditing an agent run, or pairing with get_changes_since for before/after deltas. Also readable as a resource at roblox://repro/bundle.',

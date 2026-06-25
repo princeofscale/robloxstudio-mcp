@@ -1787,6 +1787,8 @@ export class RobloxStudioTools {
 
   async summarizeEpisode(episodeId: string, comparedToEpisodeId?: string) { return this.runtimeTools.summarizeEpisode(episodeId, comparedToEpisodeId); }
 
+  async proposeNextAction(episodeId?: string) { return this.runtimeTools.proposeNextAction(episodeId); }
+
   // Episode resource-plane readers (roblox://playtest/...), not tools.
   getEpisode(episodeId: string) { return this.runtimeTools.getEpisode(episodeId); }
   listEpisodes() { return this.runtimeTools.listEpisodes(); }

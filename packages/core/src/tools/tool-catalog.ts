@@ -83,6 +83,7 @@ const DOMAIN_OVERRIDES: Record<string, ToolDomain> = {
   run_gameplay_assertions: 'runtime',
   run_playtest_episode: 'runtime',
   summarize_episode: 'runtime',
+  propose_next_action: 'runtime',
   get_reproduction_bundle: 'runtime',
   // scene read
   compare_instances: 'scene',
