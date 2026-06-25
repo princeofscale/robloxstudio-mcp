@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+- **outputSchema sweep — self-driving loop tools.** `run_playtest_episode`,
+  `summarize_episode`, and `propose_next_action` now publish strict-ish
+  `outputSchema`s (these outputs are owned by the server, so the contract is
+  reliable). Each gets a representative sample in the output-schema-contracts test.
+
 - **Track E — self-driving loop polish (round-6).** `propose_next_action` — a
   deterministic next-step picker over the stored playtest episodes, so the
   edit→playtest→observe→fix loop doesn't burn an LLM turn on the obvious move. With

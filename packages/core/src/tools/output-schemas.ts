@@ -305,6 +305,70 @@ export const OUTPUT_SCHEMAS: Record<string, JsonSchema> = {
       error: { type: 'string' },
     },
   },
+  // Self-driving loop surface (Track E). Outputs are owned by this server (built
+  // in TS over the in-memory episode store), so they get strict-ish contracts.
+  // additionalProperties:true + no required because each tool has a success and an
+  // error/not-found shape; the declared properties advertise the success contract.
+  run_playtest_episode: {
+    type: 'object',
+    additionalProperties: true,
+    properties: {
+      episodeId: { type: 'string' },
+      episodeUri: { type: 'string' },
+      mode: { type: 'string', enum: ['play', 'run'] },
+      verdict: { type: 'string', enum: ['pass', 'fail', 'error'] },
+      durationS: { type: 'number' },
+      runtimeReady: { type: 'boolean' },
+      assertions: { type: 'object', additionalProperties: true },
+      state: { type: 'object', additionalProperties: true },
+      logs: {
+        type: 'object',
+        additionalProperties: true,
+        properties: {
+          errorCount: { type: 'number' },
+          warningCount: { type: 'number' },
+          errors: { type: 'array', items: { type: 'object', additionalProperties: true } },
+          warnings: { type: 'array', items: { type: 'object', additionalProperties: true } },
+        },
+      },
+      stopped: { type: 'boolean' },
+      hint: { type: 'string' },
+      error: { type: 'string' },
+    },
+  },
+  summarize_episode: {
+    type: 'object',
+    additionalProperties: true,
+    properties: {
+      episodeId: { type: 'string' },
+      verdict: { type: 'string', enum: ['pass', 'fail', 'error'] },
+      mode: { type: 'string' },
+      errorCount: { type: 'number' },
+      warningCount: { type: 'number' },
+      failedAssertions: stringArray,
+      topErrors: stringArray,
+      implicatedScripts: stringArray,
+      comparison: { type: 'object', additionalProperties: true },
+      suggestion: { type: 'string' },
+      error: { type: 'string' },
+      known: { type: 'array', items: { type: 'object', additionalProperties: true } },
+    },
+  },
+  propose_next_action: {
+    type: 'object',
+    additionalProperties: true,
+    properties: {
+      episodeId: { type: 'string' },
+      action: { type: 'string', enum: ['run_episode', 'fix_startup', 'fix_assertion', 'fix_script', 'prove_fix', 'done'] },
+      done: { type: 'boolean' },
+      tool: { type: ['string', 'null'] },
+      args: { type: 'object', additionalProperties: true },
+      rationale: { type: 'string' },
+      focus: stringArray,
+      error: { type: 'string' },
+      known: { type: 'array', items: { type: 'object', additionalProperties: true } },
+    },
+  },
 };
 
 export const CONTRACTED_OUTPUT_TOOL_NAMES = Object.keys(OUTPUT_SCHEMAS).sort();
