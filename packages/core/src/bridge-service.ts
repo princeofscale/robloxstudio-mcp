@@ -1,4 +1,4 @@
-import { v4 as uuidv4 } from 'uuid';
+import { randomUUID } from 'node:crypto';
 
 export interface PluginInstance {
   // Internal: per-plugin GUID, regenerated on every plugin load.
@@ -528,7 +528,7 @@ export class BridgeService {
     targetInstanceId: string,
     targetRole: string,
   ): Promise<any> {
-    const requestId = uuidv4();
+    const requestId = randomUUID();
     const effectiveTimeout = resolveRequestTimeout(endpoint, this.requestTimeout);
 
     return new Promise((resolve, reject) => {

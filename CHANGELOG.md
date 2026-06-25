@@ -7,6 +7,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+- **Dependency bumps (dependabot #16–#20) + toolchain fixes.** Accepted all five open
+  dependabot PRs and made the tree green again under the majors:
+  - `typescript` 5.9 → 6.0, `@typescript-eslint/parser` + `eslint-plugin` 7 → 8,
+    `supertest` 6 → 7 / `@types/supertest` 6 → 7.
+  - TS 6.0 deprecates `moduleResolution: node` and changed `@types` auto-inclusion in
+    workspaces: silenced the deprecation with `ignoreDeprecations: "6.0"` and pinned
+    `types: ["node", "jest"]` in `packages/core/tsconfig.json`; bumped `@types/jest`
+    29 → 30 (the `ts6.0`-tagged line) so jest globals resolve.
+  - **ponytail:** dropped the `uuid` dependency entirely (9 → 14 was ESM-only and broke the
+    jest transform) — the two `v4()` call sites now use Node's built-in
+    `crypto.randomUUID()`. Fewer deps, no transform hacks.
+
 ## [2.20.1] - 2026-06-23
 
 - **External asset ingest — Track A first cut (research round-6, Q1).** Bring assets from

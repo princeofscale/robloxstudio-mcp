@@ -1,5 +1,5 @@
 import { BridgeService, PluginInstance } from './bridge-service.js';
-import { v4 as uuidv4 } from 'uuid';
+import { randomUUID } from 'node:crypto';
 
 export class ProxyBridgeService extends BridgeService {
   private primaryBaseUrl: string;
@@ -12,7 +12,7 @@ export class ProxyBridgeService extends BridgeService {
   constructor(primaryBaseUrl: string) {
     super();
     this.primaryBaseUrl = primaryBaseUrl;
-    this.proxyInstanceId = uuidv4();
+    this.proxyInstanceId = randomUUID();
     // Mirror the primary's peer list locally so getInstances() / resolveTarget
     // see real data. Without this, anything that enumerates peers from a
     // proxy-mode subprocess (target=all fanout, get_connected_instances)
