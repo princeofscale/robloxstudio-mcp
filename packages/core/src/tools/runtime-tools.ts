@@ -19,6 +19,12 @@ import type { OperationKind } from '../safety/safety-manager.js';
 import { buildPlaytestSampleLuau, type TelemetryDomain } from '../builders/playtest-telemetry.js';
 import { buildGameplayAssertionsLuau, type GameplayAssertion } from '../builders/gameplay-assertions.js';
 import type { EpisodeStore } from './episode-store.js';
+import {
+  diffEpisodes,
+  proposeNextAction,
+  failedAssertionsOf,
+  implicatedScriptsOf,
+} from './episode-reasoning.js';
 import * as fs from 'fs';
 import * as path from 'path';
 import {
@@ -1809,24 +1815,14 @@ export class RuntimeTools {
     }
     const logs = (ep.logs ?? {}) as { errors?: Array<{ message?: string }>; errorCount?: number; warningCount?: number };
     const errorLines = (logs.errors ?? []).map((e) => String(e.message ?? '')).filter(Boolean);
-    const assertions = ep.assertions as { results?: Array<{ name?: string; passed?: boolean }> } | undefined;
-    const failedAssertions = (assertions?.results ?? []).filter((r) => r.passed === false).map((r) => r.name);
-    // Best-effort: pull script-ish names out of error text (Foo.Bar, ServerScriptService.X).
-    const implicatedScripts = Array.from(new Set(
-      errorLines.flatMap((line) => line.match(/[A-Za-z_][\w]*(?:\.[A-Za-z_][\w]*)+/g) ?? []),
-    )).slice(0, 10);
+    const failedAssertions = failedAssertionsOf(ep);
+    const implicatedScripts = implicatedScriptsOf(ep);
 
     let comparison: Record<string, unknown> | undefined;
     if (comparedToEpisodeId) {
       const prev = this.runtime.episodes.get(comparedToEpisodeId);
       comparison = prev
-        ? {
-          comparedTo: comparedToEpisodeId,
-          previousVerdict: prev.verdict,
-          currentVerdict: ep.verdict,
-          fixed: prev.verdict === 'fail' && ep.verdict === 'pass',
-          regressed: prev.verdict === 'pass' && ep.verdict === 'fail',
-        }
+        ? { ...diffEpisodes(prev, ep, comparedToEpisodeId) }
         : { comparedTo: comparedToEpisodeId, error: 'comparison episode not found' };
     }
 
@@ -1855,6 +1851,37 @@ export class RuntimeTools {
   /** Newest-first index of stored episodes (backs roblox://playtest/episodes). */
   listEpisodes() {
     return wrapToolJsonText({ episodes: this.runtime.episodes.list() }) as { content: ToolContent[] };
+  }
+
+  // Deterministic "what should I do next" over the stored episodes (Track E). With
+  // no episodeId it uses the most recent episode; it also locates the most recent
+  // earlier FAILING episode so a clean run is recognized as a fix to prove. Reads
+  // the in-memory store only — no Studio round-trip, no LLM turn spent picking the
+  // obvious next step in the edit→playtest→observe→fix loop.
+  proposeNextAction(episodeId?: string) {
+    const rows = this.runtime.episodes.list(); // newest-first
+    if (rows.length === 0) {
+      return wrapToolJsonText(proposeNextAction(undefined)) as { content: ToolContent[] };
+    }
+    const targetId = episodeId ?? rows[0].episodeId;
+    const latest = this.runtime.episodes.get(targetId);
+    if (!latest) {
+      return wrapToolJsonText({
+        error: `No episode "${targetId}" in the store (it may have aged out).`,
+        known: rows.slice(0, 10),
+      }) as { content: ToolContent[] };
+    }
+    // Most recent episode older than the target that did not pass.
+    const targetIdx = rows.findIndex((r) => r.episodeId === targetId);
+    let priorFailing = undefined;
+    for (let i = targetIdx + 1; i < rows.length; i++) {
+      if (rows[i].verdict !== 'pass') {
+        priorFailing = this.runtime.episodes.get(rows[i].episodeId);
+        break;
+      }
+    }
+    const proposal = proposeNextAction(latest, priorFailing);
+    return wrapToolJsonText({ episodeId: targetId, ...proposal }) as { content: ToolContent[] };
   }
 
   private async _captureViewportImage(

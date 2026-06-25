@@ -23,6 +23,11 @@ describe('parseResourceUri', () => {
     expect(parseResourceUri('roblox://repro/bundle')).toEqual({ kind: 'repro' });
   });
 
+  it('parses asset provenance URIs (list + by assetId)', () => {
+    expect(parseResourceUri('roblox://asset/provenance')).toEqual({ kind: 'provenance', assetId: undefined });
+    expect(parseResourceUri('roblox://asset/provenance/12345')).toEqual({ kind: 'provenance', assetId: '12345' });
+  });
+
   it('returns unknown for foreign or malformed URIs', () => {
     expect(parseResourceUri('https://example.com').kind).toBe('unknown');
     expect(parseResourceUri('roblox://nope/thing').kind).toBe('unknown');

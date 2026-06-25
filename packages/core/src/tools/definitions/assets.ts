@@ -235,6 +235,23 @@ export const ASSET_TOOL_DEFINITIONS: ToolDefinition[] = [
     }
   },
   {
+    name: 'asset_source_search',
+    category: 'read',
+    description: 'Search free, license-clean (CC0) asset libraries OUTSIDE the Roblox marketplace and return one normalized descriptor shape across providers: { provider, id, name, type, license, attributionRequired, pageUrl, downloadUrl?, thumbnailUrl?, note }. Live search hits Poly Haven (textures/HDRIs/models) and ambientCG (PBR materials); Kenney and Quaternius are browse-only pointers (no search API). The intended flow is asset_source_search → pick a result → import_external_asset with the downloadUrl (which uploads it to Roblox and records provenance). All results are CC0, so no attribution is legally required, but the source is still tracked. Studio-agnostic (web only).',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        query: { type: 'string', description: 'Search text (e.g. "brick wall", "rock", "wood floor"). Omit to list (Poly Haven returns its catalog head; ambientCG returns top assets).' },
+        providers: {
+          type: 'array',
+          items: { type: 'string', enum: ['polyhaven', 'ambientcg', 'kenney', 'quaternius'] },
+          description: 'Which libraries to search. Default: all four.',
+        },
+        limit: { type: 'number', description: 'Per-provider result cap (1–50, default 10).' },
+      },
+    },
+  },
+  {
     name: 'import_external_asset',
     category: 'write',
     description: 'Bring an asset from OUTSIDE the Roblox marketplace into the place: download a URL (or read a local file), upload it to Roblox via Open Cloud, record its provenance (source, license, attribution obligation, sha256, new assetId), and optionally insert it. Use for CC0/CC-BY libraries (Kenney, Quaternius, Poly Haven, ambientCG), your own files, or any direct asset URL. Always pass the license so attribution can be tracked. Requires ROBLOX_OPEN_CLOUD_API_KEY (asset:write) + a creator id (ROBLOX_CREATOR_USER_ID / ROBLOX_CREATOR_GROUP_ID). Only import assets you have the right to upload.',

@@ -41,6 +41,12 @@ export const RESOURCE_LIST: ResourceDescriptor[] = [
     description: 'Point-in-time audit bundle: connected places, world overview, recent operations, episodes.',
     mimeType: 'application/json',
   },
+  {
+    uri: 'roblox://asset/provenance',
+    name: 'Asset provenance',
+    description: 'All externally-imported assets this session: source, license, attribution obligation, sha256, assetId.',
+    mimeType: 'application/json',
+  },
 ];
 
 export const RESOURCE_TEMPLATES = [
@@ -48,6 +54,7 @@ export const RESOURCE_TEMPLATES = [
   { uriTemplate: 'roblox://node/{path}', name: 'Node', description: 'Dot-path of an instance, e.g. game.Workspace.Map', mimeType: 'application/json' },
   { uriTemplate: 'roblox://world/changes{?since}', name: 'World changefeed', description: 'Omit `since` for a baseline; pass a prior snapshotId for the diff.', mimeType: 'application/json' },
   { uriTemplate: 'roblox://playtest/episode/{id}', name: 'Playtest episode', description: 'A stored run_playtest_episode result by episodeId.', mimeType: 'application/json' },
+  { uriTemplate: 'roblox://asset/provenance/{assetId}', name: 'Asset provenance record', description: 'Provenance for one imported asset by assetId; omit the id for all records.', mimeType: 'application/json' },
 ];
 
 export type ParsedResource =
@@ -57,6 +64,7 @@ export type ParsedResource =
   | { kind: 'episode'; id: string }
   | { kind: 'episodes' }
   | { kind: 'repro' }
+  | { kind: 'provenance'; assetId?: string }
   | { kind: 'unknown' };
 
 /** Pure URI parser — maps a roblox:// URI to a resource descriptor. */
@@ -92,6 +100,10 @@ export function parseResourceUri(uri: string): ParsedResource {
   if (segments[0] === 'repro' && segments[1] === 'bundle') {
     return { kind: 'repro' };
   }
+  if (segments[0] === 'asset' && segments[1] === 'provenance') {
+    const assetId = segments.length >= 3 ? decodeURIComponent(segments.slice(2).join('/')) : undefined;
+    return { kind: 'provenance', assetId };
+  }
   return { kind: 'unknown' };
 }
 
@@ -125,6 +137,9 @@ export async function readResource(
       break;
     case 'repro':
       result = await tools.getReproductionBundle();
+      break;
+    case 'provenance':
+      result = await tools.getAssetProvenance(parsed.assetId);
       break;
     default:
       throw new Error(`Unknown resource URI: ${uri}`);

@@ -169,6 +169,38 @@ const samples: Record<string, unknown> = {
     recipe: 'proximity_door',
     created: 'Workspace.Door',
   },
+  run_playtest_episode: {
+    episodeId: 'ep_abc',
+    episodeUri: 'roblox://playtest/episode/ep_abc',
+    mode: 'play',
+    verdict: 'fail',
+    durationS: 3,
+    runtimeReady: true,
+    assertions: { allPassed: false, results: [{ name: 'door_opens', passed: false }] },
+    logs: { errorCount: 1, warningCount: 0, errors: [{ message: 'boom' }], warnings: [] },
+    stopped: true,
+    hint: 'Runtime errors were logged.',
+  },
+  summarize_episode: {
+    episodeId: 'ep_abc',
+    verdict: 'pass',
+    mode: 'play',
+    errorCount: 0,
+    warningCount: 0,
+    failedAssertions: [],
+    topErrors: [],
+    implicatedScripts: [],
+    comparison: { comparedTo: 'ep_old', fixed: true, errorCountDelta: -1, newErrors: [], resolvedErrors: ['boom'], assertionTransitions: [] },
+    suggestion: 'Episode is clean.',
+  },
+  propose_next_action: {
+    episodeId: 'ep_abc',
+    action: 'fix_assertion',
+    done: false,
+    tool: null,
+    rationale: 'Assertion failed.',
+    focus: ['door_opens'],
+  },
 };
 
 describe('output schema contracts', () => {

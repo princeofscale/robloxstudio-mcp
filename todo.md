@@ -14,18 +14,23 @@ Ordered do-now: A, B, D, then C and E.
   multi-provider text-to-3D and EditableMesh-as-upload-lane deliberately NOT built.
 - [~] **Track A — provenance-first external ingest.** SHIPPED: `import_external_asset`
   (URL/file → Open Cloud upload → provenance → optional insert) + `get_asset_provenance`.
-  Reuses the proven `uploadAsset` path. REMAINING: multi-provider `asset_source_search`
-  over CC0 libs (Kenney/Quaternius/Poly Haven/ambientCG) with license-aware normalized
-  descriptors; provenance as an MCP resource; live Open Cloud upload dogfood (needs
-  credentials). Confirm-packet (no-key) mode not built — chose full Open Cloud automation.
+  Reuses the proven `uploadAsset` path. ALSO SHIPPED (round-6 round-2): multi-provider
+  `asset_source_search` over CC0 libs (Poly Haven + ambientCG live; Kenney/Quaternius as
+  browse-only pointers) with license-aware normalized descriptors; provenance as an MCP
+  resource (`roblox://asset/provenance[/{assetId}]`). REMAINING: live Open Cloud upload
+  dogfood (needs credentials). Confirm-packet (no-key) mode not built — chose full Open
+  Cloud automation.
 - [x] **Track D — design system + lint + review.** SHIPPED: `ui_component_catalog`
   (tokens + canonical components + guidance), `design_lint` (deterministic scored
   metric), `apply_theme` (dark/light token standardization), `design_review` (vision
   screenshot critique via Pollinations). Full set landed. `design_review` end-to-end
   dogfood pending an MCP server restart (its novel parts — vision endpoint, CoreGui
   staging — verified live).
-- [ ] **Track E — self-driving loop polish.** Deterministic `propose_next_action` +
-  richer episode diff; cut marketplace search/preflight churn.
+- [~] **Track E — self-driving loop polish.** SHIPPED: deterministic
+  `propose_next_action` (next-step from stored episodes, no LLM turn for the obvious
+  move) + richer episode diff (`diffEpisodes`: error-count delta, new/resolved error
+  lines, per-assertion transitions) in `summarize_episode`. REMAINING: cut marketplace
+  search/preflight churn (caching/dedup of repeat lookups).
 
 ## Open
 
@@ -41,9 +46,10 @@ Ordered do-now: A, B, D, then C and E.
   progress/cancel helpers, chunk planners) under a luau/lune CLI in CI. Lower ROI
   (generated Luau is already verified live) but raises coverage.
 
-- [ ] **Broader `outputSchema` sweep** — mutation/runtime/client-coupled tools
-  whose outputs are still host- or Roblox-state-dependent (first wave of stable
-  read/orchestration tools already publish strict schemas).
+- [~] **Broader `outputSchema` sweep** — the self-driving-loop tools
+  (`run_playtest_episode`, `summarize_episode`, `propose_next_action`) now publish
+  strict-ish schemas (server-owned outputs). REMAINING: the host-/Roblox-state-dependent
+  mutation/runtime/client-coupled tools whose output shapes vary with live state.
 
 ## Parked (data- / host-gated — revisit only on trigger)
 
